@@ -1,0 +1,16 @@
+# Editor / OS clutter
+*~
+*.swp
+*.swo
+.DS_Store
+
+# Local/generated configuration
+config/config.conf
+
+# Backups and generated archives
+backups/
+*.tar.gz
+*.zip
+
+# Local caches
+.cache/
