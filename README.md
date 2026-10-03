@@ -8,6 +8,12 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Preview
+
+![Hunu Wallpaper Splitter wallpaper generation](assets/screenshots/wallpaper-generation.png)
+
+Create and preview coordinated wallpapers using the physical arrangement of your monitors.
+
 ## Features
 
 - Supports **1–3 monitors**
@@ -91,6 +97,8 @@ Monitor 1 is required. Monitors 2 and 3 are optional.
 
 After saving, the setup is reused automatically on later launches. Monitor
 Setup remains available if the physical arrangement changes.
+
+![Hunu Wallpaper Splitter monitor setup](assets/screenshots/monitor-setup.png)
 
 ## Wallpaper modes
 
