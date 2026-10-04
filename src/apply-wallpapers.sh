@@ -56,7 +56,7 @@ while (( $# >= 2 )); do
         die "hyprpaper Apply failed for $output: $reply"
     fi
 
-    [[ "$reply" == "ok" ]] ||
+    [[ -z "$reply" || "$reply" == "ok" ]] ||
         die "Unexpected hyprpaper response for $output: $reply"
 done
 

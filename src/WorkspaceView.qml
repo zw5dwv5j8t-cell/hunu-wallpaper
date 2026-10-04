@@ -12,6 +12,7 @@ Item {
     property string sourcePath: ""
     property string sourceUrl: ""
     property string outputDirectory: ""
+    property string applyBackend: "serpantinum"
     property string mode: "linked"
 
     property int monitorCount: 0
@@ -293,7 +294,7 @@ Item {
             return
         let a = [
             scriptPath("apply-wallpapers.sh"),
-            "--backend", "serpantinum"
+            "--backend", applyBackend
         ]
         for (let slot of activeSlots) {
             a.push(outputName[slot])
@@ -780,6 +781,19 @@ Item {
                 color: Theme.text
                 elide: Text.ElideMiddle
             }
+            Label {
+                text: "Apply using"
+                color: Theme.subtext
+            }
+            ComboBox {
+                Layout.preferredWidth: 150
+                model: ["Serpantinum", "hyprpaper"]
+                currentIndex: root.applyBackend === "hyprpaper" ? 1 : 0
+                onActivated: function(index) {
+                    root.applyBackend = index === 1
+                        ? "hyprpaper" : "serpantinum"
+                }
+            }
             Button {
                 text: "Choose Folder"
                 enabled: root.outputDirectory !== ""
@@ -1145,8 +1159,8 @@ Item {
                         && !root.applying
                     onClicked: root.applyGenerated()
                     ToolTip.visible: hovered
-                    ToolTip.text: "Optional: applies through Serpantinum when its wallpaper IPC is installed."
-                }
+                    ToolTip.text: "Apply generated wallpapers through the selected backend."
+                 }
             }
         }
     }
