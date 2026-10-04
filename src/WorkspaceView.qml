@@ -385,21 +385,42 @@ Item {
 
     Process {
         id: applyProcess
+
+        property string stdoutText: ""
+        property string stderrText: ""
+
         stdout: StdioCollector {
-            onStreamFinished: {
-                if (text.trim() !== "")
-                    root.statusMessage = text.trim()
+            onStreamFinished: applyProcess.stdoutText = text.trim()
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: applyProcess.stderrText = text.trim()
+        }
+
+        onRunningChanged: {
+            if (running) {
+                stdoutText = ""
+                stderrText = ""
             }
         }
-        stderr: StdioCollector {
-            onStreamFinished: if (text.trim() !== "") root.processError = text.trim()
-        }
+
         onExited: function(exitCode) {
             root.applying = false
-            if (exitCode === 0)
-                root.statusMessage = "Wallpapers applied."
-            else
-                root.statusMessage = "Apply unavailable or failed. Generated files are safe."
+
+            if (exitCode === 0) {
+                root.processError = ""
+                root.statusMessage = "Wallpapers applied successfully."
+                return
+            }
+
+            let detail = stderrText
+            if (detail === "")
+                detail = stdoutText
+            if (detail === "")
+                detail = "apply-serpantinum.sh exited with code " + exitCode + "."
+
+            root.processError = detail
+            root.statusMessage = "Apply failed — generated files are safe."
         }
     }
 
