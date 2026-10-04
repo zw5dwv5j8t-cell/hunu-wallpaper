@@ -3,6 +3,11 @@ set -euo pipefail
 
 APP_NAME="${HUNU_APP_NAME:-hunu-wallpaper}"
 
+if [[ ! "$APP_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    echo "ERROR: Invalid HUNU_APP_NAME. Use letters, numbers, dots, underscores, or hyphens; start with a letter or number." >&2
+    exit 2
+fi
+
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"

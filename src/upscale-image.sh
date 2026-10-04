@@ -70,6 +70,11 @@ if [[ -z "$OUTPUT" ]]; then
         APP_NAME="hunu-wallpaper"
     fi
 
+    if [[ ! "$APP_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Invalid HUNU_APP_NAME. Use letters, numbers, dots, underscores, or hyphens; start with a letter or number." >&2
+        exit 2
+    fi
+
     CACHE_DIR="$CACHE_HOME/$APP_NAME"
     USE_CACHE=true
 fi

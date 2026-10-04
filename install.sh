@@ -15,6 +15,12 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 APP_NAME="${HUNU_APP_NAME:-hunu-wallpaper}"
+
+if [[ ! "$APP_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    echo "ERROR: Invalid HUNU_APP_NAME. Use letters, numbers, dots, underscores, or hyphens; start with a letter or number." >&2
+    exit 2
+fi
+
 REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # Respect XDG locations while retaining standard Linux defaults.
