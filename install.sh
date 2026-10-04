@@ -210,14 +210,35 @@ cp \
 # ---------------------------------------------------------------------------
 # Install desktop launcher
 # ---------------------------------------------------------------------------
+desktop_value() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//$'\n'/\\n}"
+    value="${value//$'\r'/\\r}"
+    value="${value//$'\t'/\\t}"
+    printf '%s' "$value"
+}
+
+desktop_exec_argument() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    value="${value//\$/\\\$}"
+    value="${value//\`/\\\`}"
+    value="${value//%/%%}"
+    desktop_value "\"$value\""
+}
+
+EXEC_CONFIG_DIR="$(desktop_exec_argument "$CONFIG_DIR")"
+DESKTOP_ICON="$(desktop_value "$ICON_FILE")"
 
 cat > "$DESKTOP_FILE" <<EOF
 [Desktop Entry]
 Type=Application
 Name=$DISPLAY_NAME
 Comment=Create coordinated wallpapers for 1–3 physical monitors
-Exec=quickshell -p $CONFIG_DIR
-Icon=$ICON_FILE
+Exec=quickshell -p $EXEC_CONFIG_DIR
+Icon=$DESKTOP_ICON
 Terminal=false
 Categories=Graphics;Utility;
 StartupNotify=false
