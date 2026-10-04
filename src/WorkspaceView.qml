@@ -424,6 +424,16 @@ Item {
         }
     }
 
+    component HunuRadioButton: RadioButton {
+        contentItem: Text {
+            text: parent.text
+            font: parent.font
+            color: parent.enabled ? Theme.text : Theme.muted
+            verticalAlignment: Text.AlignVCenter
+            leftPadding: parent.indicator.width + parent.spacing
+        }
+    }
+
     component HelpTip: ToolTip {
         delay: 450
         timeout: 7000
@@ -685,7 +695,7 @@ Item {
             Layout.fillWidth: true
             spacing: 14
             Label { text: "Mode"; color: Theme.text; font.bold: true }
-            RadioButton {
+            HunuRadioButton {
                 text: "Linked / Seam"
                 checked: root.mode === "linked"
                 onClicked: {
@@ -695,7 +705,7 @@ Item {
                 ToolTip.visible: hovered
                 ToolTip.text: "One continuous wallpaper composition across the physical monitor arrangement."
             }
-            RadioButton {
+            HunuRadioButton {
                 text: "Maximum Quality / Independent"
                 checked: root.mode === "quality"
                 onClicked: {
@@ -787,27 +797,27 @@ Item {
                             font.pixelSize: 12
                         }
                 
-                        RadioButton {
+                        HunuRadioButton {
                             text: "Off"
                             checked: root.upscaleScale === 1
                             onClicked: root.upscaleScale = 1
                         }
                 
-                        RadioButton {
+                        HunuRadioButton {
                             text: "2×"
                             enabled: root.upscalerAvailable
                             checked: root.upscaleScale === 2
                             onClicked: root.upscaleScale = 2
                         }
                 
-                        RadioButton {
+                        HunuRadioButton {
                             text: "3×"
                             enabled: root.upscalerAvailable
                             checked: root.upscaleScale === 3
                             onClicked: root.upscaleScale = 3
                         }
                 
-                        RadioButton {
+                        HunuRadioButton {
                             text: "4×"
                             enabled: root.upscalerAvailable
                             checked: root.upscaleScale === 4
