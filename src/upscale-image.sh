@@ -5,6 +5,7 @@ INPUT=""
 OUTPUT=""
 SCALE="4"
 MODEL="realesrgan-x4plus"
+USE_CACHE=false
 
 usage() {
     cat <<'EOF'
@@ -70,7 +71,7 @@ if [[ -z "$OUTPUT" ]]; then
     fi
 
     CACHE_DIR="$CACHE_HOME/$APP_NAME"
-    OUTPUT="$CACHE_DIR/upscaled-current.png"
+    USE_CACHE=true
 fi
 
 if [[ ! -f "$INPUT" ]]; then
@@ -96,7 +97,51 @@ case "$SCALE" in
         ;;
 esac
 
+if [[ "$USE_CACHE" == true ]]; then
+    for cmd in sha256sum flock magick; do
+        command -v "$cmd" >/dev/null 2>&1 || {
+            echo "ERROR: Required cache tool was not found: $cmd" >&2
+            exit 127
+        }
+    done
+
+    SOURCE_HASH="$(sha256sum < "$INPUT")"
+    SOURCE_HASH="${SOURCE_HASH%% *}"
+
+    HELPER_HASH="$(sha256sum < "${BASH_SOURCE[0]}")"
+    HELPER_HASH="${HELPER_HASH%% *}"
+
+    CACHE_KEY="$(
+        printf '%s\0' "$SOURCE_HASH" "$SCALE" "$MODEL" "$HELPER_HASH" |
+            sha256sum
+    )"
+    CACHE_KEY="${CACHE_KEY%% *}"
+    OUTPUT="$CACHE_DIR/upscaled-$CACHE_KEY.png"
+fi
+
+# Check again after resolving the default cache destination.
+if [[ "$INPUT" -ef "$OUTPUT" ]]; then
+    echo "ERROR: Input and output refer to the same file. Source image was left untouched." >&2
+    exit 2
+fi
+
 mkdir -p "$(dirname -- "$OUTPUT")"
+
+if [[ "$USE_CACHE" == true ]]; then
+    exec 9>"$OUTPUT.lock"
+    flock -x 9
+
+    if [[ -s "$OUTPUT" ]] &&
+        magick identify -quiet "$OUTPUT" >/dev/null 2>&1
+    then
+        echo "UPSCALE_STATUS=OK"
+        echo "UPSCALE_CACHE=HIT"
+        echo "UPSCALE_OUTPUT=$OUTPUT"
+        exit 0
+    fi
+
+    echo "UPSCALE_CACHE=MISS"
+fi
 
 echo "UPSCALE_STATUS=STARTING"
 echo "UPSCALE_INPUT=$INPUT"

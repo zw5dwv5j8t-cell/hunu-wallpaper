@@ -57,7 +57,7 @@ printf '============================================\n\n'
 
 missing=()
 
-for cmd in hyprctl quickshell magick jq bash awk flock; do
+for cmd in hyprctl quickshell magick jq bash awk flock sha256sum; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         missing+=("$cmd")
     fi
