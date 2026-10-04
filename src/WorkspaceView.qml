@@ -418,17 +418,28 @@ Item {
 
     Process {
         id: upscaleProcess
+        property string errorText: ""
+
+        onRunningChanged: {
+            if (running)
+                errorText = ""
+        }
 
         stdout: StdioCollector {
             onStreamFinished: root.parseUpscaleResult(text)
         }
         stderr: StdioCollector {
-            // Real-ESRGAN writes normal GPU/progress diagnostics to stderr.
+            onStreamFinished: {
+                upscaleProcess.errorText = text.trim()
+                    .split("\n").slice(-20).join("\n")
+            }
         }
         onExited: function(exitCode) {
             if (exitCode !== 0) {
                 root.statusMessage = "AI upscaling failed."
-                root.processError = "Real-ESRGAN exited with an error."
+                root.processError = errorText !== ""
+                    ? errorText
+                    : "AI upscale helper exited with code " + exitCode + "."
                 return
             }
             if (root.upscaledSourcePath === "") {
