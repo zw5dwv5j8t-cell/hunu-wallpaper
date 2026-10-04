@@ -25,6 +25,8 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - **Maximum Quality** mode for independent source crops
 - Physical-layout preview
 - Wallpaper positioning controls
+- Source-resolution quality analysis with an upscale recommendation
+- Optional Real-ESRGAN AI upscaling at 2×, 3×, or 4×
 - Sequential output sets using `_a`, `_b`, and `_c`
 - Saved monitor setup with first-run configuration
 - Optional Serpantinum wallpaper Apply integration
@@ -47,6 +49,8 @@ Optional:
 
 - Serpantinum — enables automatic wallpaper Apply integration and use of the
   current Serpantinum/Matugen color palette.
+- Real-ESRGAN (`realesrgan-ncnn-vulkan`) — enables optional AI upscaling.
+  Hunu works normally without it.
 
 The installer checks dependencies but does not install system packages.
 
@@ -118,6 +122,27 @@ Maximum Quality creates an independent crop from the original source image for
 each monitor. This avoids constructing the outputs from one intermediate
 combined canvas and prioritizes usable source detail on every display.
 
+## Image quality and AI upscaling
+
+Hunu compares the source image resolution with the resolution needed for the
+current monitor layout and wallpaper mode. The Image Quality panel reports
+whether the source has enough resolution and, when useful, recommends an
+upscale factor.
+
+Upscaling is always optional. Hunu never enables it automatically, even when
+the source resolution is below the recommended size.
+
+When `realesrgan-ncnn-vulkan` is installed, the Image Quality panel offers
+**Off**, **2×**, **3×**, and **4×** AI upscaling. The original source image is
+never modified; the upscaled working image is stored in Hunu's XDG cache.
+
+The `realesrgan-x4plus` model is run at its native 4× scale. For reliable 2×
+and 3× output, Hunu creates the native 4× result first and then downsamples it
+with ImageMagick to the requested size.
+
+Without Real-ESRGAN, Hunu still analyzes source quality and generates
+wallpapers normally from the original image.
+
 ## Generate and Apply
 
 **Generate** creates the wallpaper files without changing the desktop.
@@ -161,8 +186,9 @@ For an alternate installation name:
 HUNU_APP_NAME=hunu-wallpaper-test ./uninstall.sh
 ```
 
-The uninstaller removes the installed application, launcher, and icon.
-Generated wallpapers and installer backups are deliberately left untouched.
+The uninstaller removes the installed application, launcher, icon, and Hunu
+cache. Generated wallpapers and installer backups are deliberately left
+untouched.
 
 ## Repository layout
 
@@ -176,6 +202,7 @@ packaging/
 src/
   apply-serpantinum.sh
   check-monitor-config.sh
+  check-upscaler.sh
   detect-monitors.sh
   detect-theme.sh
   load-monitor-config.sh
@@ -184,6 +211,7 @@ src/
   SetupView.qml
   shell.qml
   split-wallpaper.sh
+  upscale-image.sh
   Theme.qml
   WorkspaceView.qml
 install.sh
@@ -205,6 +233,8 @@ first-run setup.
   not provide the real-world bezel-inclusive arrangement needed for accurate
   seam composition.
 - Up to three monitors are supported in the current version.
+- Monitor 1/2/3 are configuration slots; physical X/Y placement determines the
+  spatial arrangement, so monitor numbering does not need to run left to right.
 
 ## License
 
