@@ -277,22 +277,37 @@ printf '  %s\n\n' "$ICON_FILE"
 printf 'Launch manually with:\n'
 printf '  quickshell -p %s\n\n' "$CONFIG_DIR"
 
-if [[ "$has_serpantinum" == true ]]; then
-    printf 'Optional integration:\n'
-    printf '  Serpantinum detected.\n'
-    printf '  Wallpaper Apply integration is available.\n'
+printf 'Optional wallpaper backends:\n'
 
-    if [[ -f "$SERPANTINUM_COLORS" ]]; then
-        printf '  Serpantinum/Matugen colors are available.\n'
-    else
-        printf '  Serpantinum color state is not currently available.\n'
-        printf '  Hunu will use its built-in fallback palette.\n'
-    fi
+if [[ "$has_serpantinum" == true ]]; then
+    printf '  Serpantinum detected.\n'
 else
-    printf 'Optional integration:\n'
     printf '  Serpantinum was not detected.\n'
-    printf '  Hunu can still generate wallpapers normally.\n'
-    printf '  Automatic Serpantinum Apply is unavailable.\n'
+fi
+
+if command -v hyprpaper >/dev/null 2>&1; then
+    printf '  hyprpaper detected.\n'
+else
+    printf '  hyprpaper was not detected.\n'
+fi
+
+if command -v awww >/dev/null 2>&1; then
+    printf '  awww detected.\n'
+else
+    printf '  awww was not detected.\n'
+fi
+
+printf '  Choose the Apply backend inside Hunu.\n'
+printf '  Apply requires the selected backend IPC to be responding.\n'
+printf '  Hunu does not start or stop wallpaper daemons.\n'
+printf '  Wallpaper generation works without an Apply backend.\n'
+
+printf '\nOptional theme integration:\n'
+
+if [[ "$has_serpantinum" == true && -f "$SERPANTINUM_COLORS" ]]; then
+    printf '  Serpantinum/Matugen colors are available.\n'
+else
+    printf '  Serpantinum color state is not currently available.\n'
     printf '  Hunu will use its built-in fallback palette.\n'
 fi
 
