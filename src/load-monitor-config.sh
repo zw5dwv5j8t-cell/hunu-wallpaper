@@ -18,6 +18,7 @@ bool_value() {
 }
 
 printf 'CONFIG_LOADED=true\n'
+printf 'OUTPUT_DIR=%s\n' "${OUTPUT_DIR:-$HOME/Pictures/Wallpapers}"
 
 for i in 1 2 3; do
     enabled_var="MONITOR_${i}_ENABLED"

@@ -11,6 +11,7 @@ Item {
     property string configPath: ""
     property string sourcePath: ""
     property string sourceUrl: ""
+    property string outputDirectory: ""
     property string mode: "linked"
 
     property int monitorCount: 0
@@ -55,11 +56,16 @@ Item {
     property string statusMessage: "Choose a wallpaper."
 
     property bool applying: false
-    readonly property bool busy: upscaleProcess.running || splitterProcess.running || applying
-	property var pendingSplitCommand: []
+    readonly property bool busy: upscaleProcess.running || splitterProcess.running || applying || outputSaveProcess.running
+    property var pendingSplitCommand: []
 
     signal monitorSetupRequested()
-    Component.onCompleted: checkUpscaler()
+
+    Component.onCompleted: {
+        checkUpscaler()
+        loadOutputDirectory()
+    }
+    onConfigPathChanged: loadOutputDirectory()
 
     function scriptPath(name) {
         return Qt.resolvedUrl(name).toString().replace("file://", "")
@@ -137,6 +143,15 @@ Item {
             return
         probeProcess.command = commandBase(true)
         probeProcess.running = true
+    }
+
+    function loadOutputDirectory() {
+        if (configPath === "")
+            return
+        outputConfigLoader.command = [
+            scriptPath("load-monitor-config.sh"), configPath
+        ]
+        outputConfigLoader.running = true
     }
 
     function checkUpscaler() {
@@ -289,11 +304,76 @@ Item {
     }
 
     function reloadConfiguration() {
+        loadOutputDirectory()
         invalidateGenerated()
         resetOffsets()
         statusMessage = sourcePath === "" ? "Monitor setup updated. Choose a wallpaper." : "Monitor setup updated."
         if (sourcePath !== "")
             probe()
+    }
+
+    Process {
+        id: outputConfigLoader
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                for (let line of text.split("\n")) {
+                    if (line.startsWith("OUTPUT_DIR="))
+                        root.outputDirectory = line.substring(11)
+                }
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim() !== "")
+                    root.processError = text.trim()
+            }
+        }
+    }
+
+    FolderDialog {
+        id: outputFolderDialog
+        title: "Choose wallpaper output folder"
+
+        onAccepted: {
+            outputSaveProcess.requestedDirectory = root.cleanPath(selectedFolder)
+            outputSaveProcess.command = [
+                root.scriptPath("save-output-dir.sh"),
+                root.configPath,
+                outputSaveProcess.requestedDirectory
+            ]
+            root.processError = ""
+            root.statusMessage = "Saving output folder…"
+            outputSaveProcess.running = true
+        }
+    }
+
+    Process {
+        id: outputSaveProcess
+        property string requestedDirectory: ""
+        property string errorText: ""
+
+        onRunningChanged: {
+            if (running)
+                errorText = ""
+        }
+
+        stdout: StdioCollector {}
+        stderr: StdioCollector {
+            onStreamFinished: outputSaveProcess.errorText = text.trim()
+        }
+
+        onExited: function(exitCode) {
+            if (exitCode !== 0) {
+                root.processError = errorText !== ""
+                    ? errorText : "Could not save output folder."
+                root.statusMessage = "Output folder was not changed."
+                return
+            }
+            root.outputDirectory = requestedDirectory
+            root.invalidateGenerated()
+            root.statusMessage = "Output folder saved — generate wallpapers when ready."
+        }
     }
 
     FileDialog {
@@ -668,6 +748,28 @@ Item {
                 onClicked: wallpaperDialog.open()
                 ToolTip.visible: hovered
                 ToolTip.text: "Choose the source image that Hunu will crop for your monitors."
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+
+            Label {
+                text: "Save to"
+                color: Theme.subtext
+            }
+            Label {
+                Layout.fillWidth: true
+                text: root.outputDirectory === ""
+                    ? "Save monitor setup first" : root.outputDirectory
+                color: Theme.text
+                elide: Text.ElideMiddle
+            }
+            Button {
+                text: "Choose Folder"
+                enabled: root.outputDirectory !== ""
+                onClicked: outputFolderDialog.open()
             }
         }
 

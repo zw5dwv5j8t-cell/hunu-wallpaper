@@ -89,6 +89,7 @@ required_files=(
     "src/split-wallpaper.sh"
     "src/detect-monitors.sh"
     "src/save-monitor-config.sh"
+    "src/save-output-dir.sh"
     "src/check-monitor-config.sh"
     "src/load-monitor-config.sh"
     "src/detect-theme.sh"
@@ -158,6 +159,7 @@ app_files=(
     "split-wallpaper.sh"
     "detect-monitors.sh"
     "save-monitor-config.sh"
+    "save-output-dir.sh"
     "check-monitor-config.sh"
     "load-monitor-config.sh"
     "check-upscaler.sh"
@@ -174,6 +176,7 @@ chmod +x \
     "$CONFIG_DIR/split-wallpaper.sh" \
     "$CONFIG_DIR/detect-monitors.sh" \
     "$CONFIG_DIR/save-monitor-config.sh" \
+    "$CONFIG_DIR/save-output-dir.sh" \
     "$CONFIG_DIR/check-monitor-config.sh" \
     "$CONFIG_DIR/load-monitor-config.sh" \
     "$CONFIG_DIR/detect-theme.sh" \
