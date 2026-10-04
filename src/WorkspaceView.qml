@@ -52,7 +52,10 @@ Item {
     property string generatedPair: ""
     property string processError: ""
     property string statusMessage: "Choose a wallpaper."
+
     property bool applying: false
+    readonly property bool busy: upscaleProcess.running || splitterProcess.running || applying
+	property var pendingSplitCommand: []
 
     signal monitorSetupRequested()
     Component.onCompleted: checkUpscaler()
@@ -199,6 +202,8 @@ Item {
 
         invalidateGenerated()
         upscaledSourcePath = ""
+        pendingSplitCommand = commandForSource(
+            sourcePath, false, mode === "quality" ? upscaleScale : 1)
 
         if (upscaleScale === 1) {
             statusMessage = "Generating wallpapers…"
@@ -341,39 +346,40 @@ Item {
             }
 
             root.statusMessage = "Upscaling complete — generating wallpapers…"
-            splitterProcess.command = root.commandForSource(
-                root.upscaledSourcePath, false, root.mode === "quality" ? root.upscaleScale : 1)
-            splitterProcess.running = true
+            let splitCommand = root.pendingSplitCommand.slice()
+            splitCommand[1] = root.upscaledSourcePath
+            splitterProcess.command = splitCommand
+             splitterProcess.running = true
         }
     }
 
     Process {
         id: upscalerCheckProcess
-    
+
         stdout: StdioCollector {
             onStreamFinished: {
                 let available = false
-    
+
                 for (let line of text.trim().split("\n")) {
                     const p = line.indexOf("=")
                     if (p < 0)
                         continue
-    
+
                     const key = line.substring(0, p).trim()
                     const value = line.substring(p + 1).trim()
-    
+
                     if (key === "UPSCALER_AVAILABLE")
                         available = value === "true"
                 }
-    
+
                 root.upscalerAvailable = available
                 root.upscalerChecked = true
-    
+
                 if (!available)
                     root.upscaleScale = 1
             }
         }
-    
+
         onExited: function(exitCode) {
             if (exitCode !== 0) {
                 root.upscalerAvailable = false
@@ -575,6 +581,7 @@ Item {
         anchors.fill: parent
         anchors.margins: 22
         spacing: 12
+        enabled: !root.busy
 
         RowLayout {
             Layout.fillWidth: true
@@ -742,22 +749,22 @@ Item {
             border.width: 1
             border.color: Qt.alpha(Theme.subtext, 0.22)
             visible: root.sourcePath !== ""
-        
+
             RowLayout {
                 anchors.fill: parent
                 anchors.margins: 14
                 spacing: 18
-        
+
                 ColumnLayout {
                     spacing: 3
-        
+
                     Label {
                         text: "Image Quality"
                         color: Theme.text
                         font.bold: true
                         font.pixelSize: 15
                     }
-        
+
                     Label {
                         text: "Source  " + root.sourceW + " × " + root.sourceH
                             + "   ·   Recommended  " + root.idealW + " × " + root.idealH
@@ -765,58 +772,58 @@ Item {
                         font.pixelSize: 12
                     }
                 }
-        
+
                 Item {
                     Layout.fillWidth: true
                 }
-        
+
                 ColumnLayout {
                     spacing: 5
-                
+
                     Label {
                         Layout.alignment: Qt.AlignRight
-                
+
                         text: root.sourceSufficient
                             ? "Source quality: Excellent"
                             : "Source quality: Below recommended"
-                
+
                         color: root.sourceSufficient
                             ? Theme.success
                             : Theme.text
-                
+
                         font.bold: true
                     }
-                
+
                     RowLayout {
                         Layout.alignment: Qt.AlignRight
                         spacing: 4
-                
+
                         Label {
                             text: "AI Upscaling"
                             color: Theme.subtext
                             font.pixelSize: 12
                         }
-                
+
                         HunuRadioButton {
                             text: "Off"
                             checked: root.upscaleScale === 1
                             onClicked: root.upscaleScale = 1
                         }
-                
+
                         HunuRadioButton {
                             text: "2×"
                             enabled: root.upscalerAvailable
                             checked: root.upscaleScale === 2
                             onClicked: root.upscaleScale = 2
                         }
-                
+
                         HunuRadioButton {
                             text: "3×"
                             enabled: root.upscalerAvailable
                             checked: root.upscaleScale === 3
                             onClicked: root.upscaleScale = 3
                         }
-                
+
                         HunuRadioButton {
                             text: "4×"
                             enabled: root.upscalerAvailable
@@ -824,10 +831,10 @@ Item {
                             onClicked: root.upscaleScale = 4
                         }
                     }
-                
+
                     Label {
                         Layout.alignment: Qt.AlignRight
-                
+
                         text: !root.upscalerChecked
                             ? "Checking Real-ESRGAN…"
                             : !root.upscalerAvailable
@@ -837,7 +844,7 @@ Item {
                                     : root.recommendedScale > 0
                                         ? "Recommended: " + root.recommendedScale + "×"
                                         : "4× is the highest available scale and remains below ideal."
-                
+
                         color: Theme.muted
                         font.pixelSize: 12
                     }
