@@ -57,7 +57,19 @@ fi
 
 if [[ -z "$OUTPUT" ]]; then
     CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
-    CACHE_DIR="$CACHE_HOME/hunu-wallpaper"
+
+    # Installed copies live in ~/.config/$APP_NAME, so derive the cache
+    # namespace from the installation directory. This keeps alternate/test
+    # installations isolated. When run directly from the repository's src/
+    # directory, retain the normal hunu-wallpaper cache name.
+    SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+    APP_NAME="${HUNU_APP_NAME:-$(basename -- "$SCRIPT_DIR")}"
+
+    if [[ "$APP_NAME" == "src" ]]; then
+        APP_NAME="hunu-wallpaper"
+    fi
+
+    CACHE_DIR="$CACHE_HOME/$APP_NAME"
     OUTPUT="$CACHE_DIR/upscaled-current.png"
 fi
 
