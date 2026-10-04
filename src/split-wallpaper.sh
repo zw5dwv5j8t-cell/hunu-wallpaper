@@ -266,6 +266,13 @@ done
 # ------------------------------------------------------------
 
 mkdir -p "$OUTPUT_DIR"
+# Hold the lock through numbering and generation.
+# Probes only inspect geometry and do not need the lock.
+if [[ "$PROBE" == false ]]; then
+    command -v flock >/dev/null 2>&1 || die "'flock' was not found."
+    exec 9>"$OUTPUT_DIR/.hunu-generation.lock"
+    flock -x 9
+fi
 
 suffix_for_slot() {
     case "$1" in
