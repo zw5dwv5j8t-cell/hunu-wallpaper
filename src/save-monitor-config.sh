@@ -52,6 +52,16 @@ done
     exit 2
 }
 
+WALLPAPER_OUTPUT_DIR="$HOME/Pictures/Wallpapers"
+
+if [[ -f "$CONFIG_PATH" ]]; then
+    WALLPAPER_OUTPUT_DIR="$(
+        unset OUTPUT_DIR
+        source "$CONFIG_PATH"
+        printf '%s' "${OUTPUT_DIR:-$HOME/Pictures/Wallpapers}"
+    )"
+fi
+
 OUTPUT_DIR="$(dirname -- "$CONFIG_PATH")"
 mkdir -p "$OUTPUT_DIR"
 
@@ -80,7 +90,7 @@ write_monitor() {
     echo '# Physical measurements include monitor bezels.'
     echo
     echo '# General'
-    echo 'OUTPUT_DIR="$HOME/Pictures/Wallpapers"'
+    printf 'OUTPUT_DIR=%q\n' "$WALLPAPER_OUTPUT_DIR"
 } > "$tmp"
 
 write_monitor 1 true "$M1_OUTPUT" "$M1_WIDTH" "$M1_HEIGHT" "$M1_PW" "$M1_PH" "$M1_X" "$M1_Y"
