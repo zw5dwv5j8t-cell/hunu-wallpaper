@@ -89,15 +89,50 @@ echo "UPSCALE_MODEL=$MODEL"
 
 rm -f -- "$OUTPUT"
 
-if ! realesrgan-ncnn-vulkan \
-    -i "$INPUT" \
-    -o "$OUTPUT" \
-    -s "$SCALE" \
-    -n "$MODEL"
-then
-    rm -f -- "$OUTPUT"
-    echo "ERROR: Real-ESRGAN failed." >&2
-    exit 1
+# realesrgan-x4plus is a native 4x model. Although the NCNN executable accepts
+# -s 2 and -s 3, non-native scaling can produce tiled/corrupted output on some
+# builds. Always run the model at 4x, then downsample for requested 2x/3x.
+if [[ "$SCALE" == "4" ]]; then
+    if ! realesrgan-ncnn-vulkan \
+        -i "$INPUT" \
+        -o "$OUTPUT" \
+        -s 4 \
+        -n "$MODEL"
+    then
+        rm -f -- "$OUTPUT"
+        echo "ERROR: Real-ESRGAN failed." >&2
+        exit 1
+    fi
+else
+    if ! command -v magick >/dev/null 2>&1; then
+        echo "ERROR: ImageMagick (magick) is required for 2x/3x AI output." >&2
+        exit 127
+    fi
+
+    TEMP_OUTPUT="$(mktemp --suffix=.png "${TMPDIR:-/tmp}/hunu-upscale-4x.XXXXXX")"
+    trap 'rm -f -- "$TEMP_OUTPUT"' EXIT
+
+    if ! realesrgan-ncnn-vulkan \
+        -i "$INPUT" \
+        -o "$TEMP_OUTPUT" \
+        -s 4 \
+        -n "$MODEL"
+    then
+        echo "ERROR: Real-ESRGAN failed." >&2
+        exit 1
+    fi
+
+    if [[ "$SCALE" == "2" ]]; then
+        RESIZE_PERCENT="50%"
+    else
+        RESIZE_PERCENT="75%"
+    fi
+
+    if ! magick "$TEMP_OUTPUT" -resize "$RESIZE_PERCENT" "$OUTPUT"; then
+        rm -f -- "$OUTPUT"
+        echo "ERROR: Failed to resize Real-ESRGAN output to ${SCALE}x." >&2
+        exit 1
+    fi
 fi
 
 if [[ ! -s "$OUTPUT" ]]; then

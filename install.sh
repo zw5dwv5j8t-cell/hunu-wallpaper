@@ -92,6 +92,8 @@ required_files=(
     "src/check-monitor-config.sh"
     "src/load-monitor-config.sh"
     "src/detect-theme.sh"
+    "src/check-upscaler.sh"
+    "src/upscale-image.sh"
     "src/apply-serpantinum.sh"
     "assets/hunu-wallpaper.png"
 )
@@ -158,6 +160,8 @@ app_files=(
     "save-monitor-config.sh"
     "check-monitor-config.sh"
     "load-monitor-config.sh"
+    "check-upscaler.sh"
+    "upscale-image.sh"
     "detect-theme.sh"
     "apply-serpantinum.sh"
 )
@@ -173,7 +177,9 @@ chmod +x \
     "$CONFIG_DIR/check-monitor-config.sh" \
     "$CONFIG_DIR/load-monitor-config.sh" \
     "$CONFIG_DIR/detect-theme.sh" \
-    "$CONFIG_DIR/apply-serpantinum.sh"
+    "$CONFIG_DIR/apply-serpantinum.sh" \
+    "$CONFIG_DIR/check-upscaler.sh" \
+    "$CONFIG_DIR/upscale-image.sh"
 
 # Deliberately do NOT install config/config.conf.
 #
@@ -249,6 +255,19 @@ else
     printf '  Hunu can still generate wallpapers normally.\n'
     printf '  Automatic Serpantinum Apply is unavailable.\n'
     printf '  Hunu will use its built-in fallback palette.\n'
+fi
+
+if command -v realesrgan-ncnn-vulkan >/dev/null 2>&1; then
+    printf '\n'
+    printf 'Optional AI upscaling:\n'
+    printf '  Real-ESRGAN detected.\n'
+    printf '  AI upscaling is available.\n'
+else
+    printf '\n'
+    printf 'Optional AI upscaling:\n'
+    printf '  Real-ESRGAN was not detected.\n'
+    printf '  Hunu works normally without it.\n'
+    printf '  Install realesrgan-ncnn-vulkan to enable AI upscaling.\n'
 fi
 
 printf '\n'
