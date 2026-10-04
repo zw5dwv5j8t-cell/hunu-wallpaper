@@ -29,6 +29,7 @@ Item {
     property int upscaleScale: 1
     property bool upscalerAvailable: false
     property bool upscalerChecked: false
+    property string upscaledSourcePath: ""
 
     property var outputName: ["", "", "", ""]
     property var pixelW: [0, 0, 0, 0]
@@ -105,22 +106,26 @@ Item {
         statusMessage = "Preview changed — generate again."
     }
 
-    function commandBase(includeProbe) {
+    function commandForSource(inputPath, includeProbe, positionScale) {
         let a = [
             scriptPath("split-wallpaper.sh"),
-            sourcePath,
+            inputPath,
             "--config", configPath,
             "--mode", mode
         ]
         for (let i = 1; i <= 3; ++i) {
             a.push("--monitor-" + i + "-x")
-            a.push(String(offsetX[i]))
+            a.push(String(Math.round(offsetX[i] * positionScale)))
             a.push("--monitor-" + i + "-y")
-            a.push(String(offsetY[i]))
+            a.push(String(Math.round(offsetY[i] * positionScale)))
         }
         if (includeProbe)
             a.push("--probe")
         return a
+    }
+
+    function commandBase(includeProbe) {
+        return commandForSource(sourcePath, includeProbe, 1)
     }
 
     function probe() {
@@ -191,10 +196,41 @@ Item {
             statusMessage = "Choose a wallpaper first."
             return
         }
+
         invalidateGenerated()
-        statusMessage = "Generating wallpapers…"
-        splitterProcess.command = commandBase(false)
-        splitterProcess.running = true
+        upscaledSourcePath = ""
+
+        if (upscaleScale === 1) {
+            statusMessage = "Generating wallpapers…"
+            splitterProcess.command = commandBase(false)
+            splitterProcess.running = true
+            return
+        }
+
+        if (!upscalerAvailable) {
+            statusMessage = "Real-ESRGAN is not available."
+            return
+        }
+
+        statusMessage = "AI upscaling source " + upscaleScale + "×…"
+        upscaleProcess.command = [
+            scriptPath("upscale-image.sh"),
+            "--input", sourcePath,
+            "--scale", String(upscaleScale)
+        ]
+        upscaleProcess.running = true
+    }
+
+    function parseUpscaleResult(text) {
+        for (let line of text.trim().split("\n")) {
+            const p = line.indexOf("=")
+            if (p < 0)
+                continue
+            const key = line.substring(0, p).trim()
+            const value = line.substring(p + 1).trim()
+            if (key === "UPSCALE_OUTPUT")
+                upscaledSourcePath = value
+        }
     }
 
     function parseResult(text) {
@@ -281,6 +317,33 @@ Item {
                 root.statusMessage = "Generation finished, but output paths were not returned."
             else
                 root.statusMessage = "Wallpapers generated — ready to apply."
+        }
+    }
+
+    Process {
+        id: upscaleProcess
+
+        stdout: StdioCollector {
+            onStreamFinished: root.parseUpscaleResult(text)
+        }
+        stderr: StdioCollector {
+            // Real-ESRGAN writes normal GPU/progress diagnostics to stderr.
+        }
+        onExited: function(exitCode) {
+            if (exitCode !== 0) {
+                root.statusMessage = "AI upscaling failed."
+                root.processError = "Real-ESRGAN exited with an error."
+                return
+            }
+            if (root.upscaledSourcePath === "") {
+                root.statusMessage = "AI upscaling finished, but no output path was returned."
+                return
+            }
+
+            root.statusMessage = "Upscaling complete — generating wallpapers…"
+            splitterProcess.command = root.commandForSource(
+                root.upscaledSourcePath, false, root.upscaleScale)
+            splitterProcess.running = true
         }
     }
 
@@ -783,55 +846,93 @@ Item {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: root.generatedReady() ? 118 : 82
+            Layout.preferredHeight: 118
             radius: 10
             color: Theme.surface
+            clip: true
 
             RowLayout {
                 anchors.fill: parent
                 anchors.margins: 14
                 spacing: 14
 
-                ColumnLayout {
+                Flickable {
+                    id: resultScroll
                     Layout.fillWidth: true
-                    spacing: 3
-                    Label {
-                        text: root.generatedPair !== ""
-                            ? root.statusMessage + "  ·  Set " + root.generatedPair
-                            : root.statusMessage
-                        color: Theme.success
-                        font.bold: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: width
+                    contentHeight: resultContent.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    flickableDirection: Flickable.VerticalFlick
+
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AsNeeded
                     }
-                    Repeater {
-                        model: root.monitorCount
-                        delegate: Label {
-                            required property int index
-                            property int slot: index + 1
-                            visible: root.generatedFile[slot] !== ""
-                            text: "Monitor " + slot + " · " + root.outputName[slot]
-                                + " · " + root.generatedFile[slot].split("/").pop()
-                            color: Theme.subtext
+
+                    Column {
+                        id: resultContent
+                        width: resultScroll.width - 12
+                        spacing: 3
+
+                        Label {
+                            width: parent.width
+                            text: root.generatedPair !== ""
+                                ? root.statusMessage + "  ·  Set " + root.generatedPair
+                                : root.statusMessage
+                            color: Theme.success
+                            font.bold: true
+                            elide: Text.ElideRight
                         }
-                    }
-                    Label {
-                        visible: root.processError !== ""
-                        Layout.fillWidth: true
-                        text: root.processError
-                        color: Theme.muted
-                        elide: Text.ElideRight
+
+                        Repeater {
+                            model: root.monitorCount
+                            delegate: Label {
+                                required property int index
+                                property int slot: index + 1
+                                width: resultContent.width
+                                visible: root.generatedFile[slot] !== ""
+                                text: "Monitor " + slot + " · " + root.outputName[slot]
+                                    + " · " + root.generatedFile[slot].split("/").pop()
+                                color: Theme.subtext
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        Label {
+                            visible: root.processError !== ""
+                            width: parent.width
+                            text: root.processError
+                            color: Theme.muted
+                            wrapMode: Text.Wrap
+                        }
                     }
                 }
 
                 Button {
-                    text: splitterProcess.running ? "Generating…" : "Generate"
-                    enabled: root.sourcePath !== "" && !splitterProcess.running && !root.applying
+                    Layout.preferredWidth: 112
+                    Layout.minimumWidth: 112
+                    Layout.maximumWidth: 112
+                    text: upscaleProcess.running ? "Upscaling…"
+                        : splitterProcess.running ? "Generating…" : "Generate"
+                    enabled: root.sourcePath !== ""
+                        && !upscaleProcess.running
+                        && !splitterProcess.running
+                        && !root.applying
                     onClicked: root.generate()
                     ToolTip.visible: hovered
                     ToolTip.text: "Create one correctly sized wallpaper file for every enabled monitor."
                 }
+
                 Button {
+                    Layout.preferredWidth: 96
+                    Layout.minimumWidth: 96
+                    Layout.maximumWidth: 96
                     text: root.applying ? "Applying…" : "Apply"
-                    enabled: root.generatedReady() && !splitterProcess.running && !root.applying
+                    enabled: root.generatedReady()
+                        && !upscaleProcess.running
+                        && !splitterProcess.running
+                        && !root.applying
                     onClicked: root.applyGenerated()
                     ToolTip.visible: hovered
                     ToolTip.text: "Optional: applies through Serpantinum when its wallpaper IPC is installed."

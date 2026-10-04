@@ -9,11 +9,11 @@ MODEL="realesrgan-x4plus"
 usage() {
     cat <<'EOF'
 Usage:
-  upscale-image.sh --input FILE --output FILE [options]
+  upscale-image.sh --input FILE [--output FILE] [options]
 
 Options:
   --input FILE     Source image
-  --output FILE    Upscaled image
+  --output FILE    Upscaled image (default: Hunu cache)
   --scale N        Upscale factor: 2, 3, or 4 (default: 4)
   --model NAME     Real-ESRGAN model (default: realesrgan-x4plus)
   --help           Show this help
@@ -56,8 +56,9 @@ if [[ -z "$INPUT" ]]; then
 fi
 
 if [[ -z "$OUTPUT" ]]; then
-    echo "ERROR: --output is required." >&2
-    exit 2
+    CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+    CACHE_DIR="$CACHE_HOME/hunu-wallpaper"
+    OUTPUT="$CACHE_DIR/upscaled-current.png"
 fi
 
 if [[ ! -f "$INPUT" ]]; then
@@ -85,6 +86,8 @@ echo "UPSCALE_INPUT=$INPUT"
 echo "UPSCALE_OUTPUT=$OUTPUT"
 echo "UPSCALE_SCALE=$SCALE"
 echo "UPSCALE_MODEL=$MODEL"
+
+rm -f -- "$OUTPUT"
 
 if ! realesrgan-ncnn-vulkan \
     -i "$INPUT" \
