@@ -19,6 +19,13 @@ Item {
     property int desktopW: 1
     property int desktopH: 1
 
+    property int sourceW: 0
+    property int sourceH: 0
+    property int idealW: 0
+    property int idealH: 0
+    property bool sourceSufficient: true
+    property int recommendedScale: 1
+
     property var outputName: ["", "", "", ""]
     property var pixelW: [0, 0, 0, 0]
     property var pixelH: [0, 0, 0, 0]
@@ -131,6 +138,13 @@ Item {
         previewH = intAt(values, "PREVIEW_H", 1)
         desktopW = intAt(values, "DESKTOP_W", 1)
         desktopH = intAt(values, "DESKTOP_H", 1)
+
+        sourceW = intAt(values, "SOURCE_W", 0)
+        sourceH = intAt(values, "SOURCE_H", 0)
+        idealW = intAt(values, "IDEAL_W", 0)
+        idealH = intAt(values, "IDEAL_H", 0)
+        sourceSufficient = valueAt(values, "SOURCE_SUFFICIENT", "true") === "true"
+        recommendedScale = intAt(values, "RECOMMENDED_SCALE", 1)
 
         let names = ["", "", "", ""]
         let pw = [0,0,0,0], ph = [0,0,0,0]
@@ -578,6 +592,75 @@ Item {
                 : "Maximum Quality crops the original wallpaper independently for each monitor."
             color: Theme.muted
             wrapMode: Text.WordWrap
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 86
+            radius: 10
+            color: Theme.surface
+            border.width: 1
+            border.color: Qt.alpha(Theme.subtext, 0.22)
+            visible: root.sourcePath !== ""
+        
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 18
+        
+                ColumnLayout {
+                    spacing: 3
+        
+                    Label {
+                        text: "Image Quality"
+                        color: Theme.text
+                        font.bold: true
+                        font.pixelSize: 15
+                    }
+        
+                    Label {
+                        text: "Source  " + root.sourceW + " × " + root.sourceH
+                            + "   ·   Recommended  " + root.idealW + " × " + root.idealH
+                        color: Theme.subtext
+                        font.pixelSize: 12
+                    }
+                }
+        
+                Item {
+                    Layout.fillWidth: true
+                }
+        
+                ColumnLayout {
+                    spacing: 3
+        
+                    Label {
+                        Layout.alignment: Qt.AlignRight
+        
+                        text: root.sourceSufficient
+                            ? "Source quality: Excellent"
+                            : "Source quality: Below recommended"
+        
+                        color: root.sourceSufficient
+                            ? Theme.success
+                            : Theme.text
+        
+                        font.bold: true
+                    }
+        
+                    Label {
+                        Layout.alignment: Qt.AlignRight
+        
+                        text: root.sourceSufficient
+                            ? "AI upscaling is not needed."
+                            : root.recommendedScale > 0
+                                ? "AI upscale recommendation: " + root.recommendedScale + "×"
+                                : "Even a 4× upscale is below the ideal resolution."
+        
+                        color: Theme.muted
+                        font.pixelSize: 12
+                    }
+                }
+            }
         }
 
         RowLayout {
