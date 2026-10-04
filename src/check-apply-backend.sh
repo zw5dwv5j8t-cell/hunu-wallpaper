@@ -48,6 +48,16 @@ case "$BACKEND" in
             REASON="hyprpaper IPC is ready."
         fi
         ;;
+    awww)
+        if ! command -v awww >/dev/null 2>&1; then
+            REASON="awww is not installed."
+        elif ! reply="$(timeout 3 awww query 2>&1)"; then
+            REASON="awww IPC is unavailable or timed out."
+        else
+            READY=true
+            REASON="awww IPC is ready."
+        fi
+        ;;
     *)
         echo "ERROR: Unsupported backend: $BACKEND" >&2
         exit 2

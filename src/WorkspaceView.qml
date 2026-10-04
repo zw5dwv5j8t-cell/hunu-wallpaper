@@ -13,6 +13,7 @@ Item {
     property string sourceUrl: ""
     property string outputDirectory: ""
     property string applyBackend: "serpantinum"
+    readonly property var applyBackendValues: ["serpantinum", "hyprpaper", "awww"]
     property bool backendReady: false
     property string backendStatus: "Checking wallpaper backend…"
 
@@ -356,8 +357,8 @@ Item {
                         root.outputDirectory = line.substring(11)
                     else if (line.startsWith("APPLY_BACKEND=")) {
                         const backend = line.substring(14)
-                        root.applyBackend = backend === "hyprpaper"
-                            ? "hyprpaper" : "serpantinum"
+                        root.applyBackend = root.applyBackendValues.indexOf(backend) >= 0
+                            ? backend : "serpantinum"
                     }
                 }
             }
@@ -891,13 +892,13 @@ Item {
             }
             ComboBox {
                 Layout.preferredWidth: 150
-                model: ["Serpantinum", "hyprpaper"]
-                currentIndex: root.applyBackend === "hyprpaper" ? 1 : 0
+                model: ["Serpantinum", "hyprpaper", "awww"]
+                currentIndex: Math.max(0, root.applyBackendValues.indexOf(root.applyBackend))
                 onActivated: function(index) {
-                    root.saveApplyBackend(index === 1
-                        ? "hyprpaper" : "serpantinum")
+                    root.saveApplyBackend(root.applyBackendValues[index])
                     currentIndex = Qt.binding(function() {
-                        return root.applyBackend === "hyprpaper" ? 1 : 0
+                        return Math.max(0,
+                            root.applyBackendValues.indexOf(root.applyBackend))
                     })
                 }
             }

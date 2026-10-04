@@ -7,13 +7,13 @@ die() {
 }
 
 [[ $# -ge 2 && "$1" == "--backend" ]] ||
-    die "Usage: $0 --backend serpantinum|hyprpaper OUTPUT FILE ..."
+    die "Usage: $0 --backend serpantinum|hyprpaper|awww OUTPUT FILE ..."
 
 BACKEND="$2"
 shift 2
 
 case "$BACKEND" in
-    serpantinum|hyprpaper) ;;
+    serpantinum|hyprpaper|awww) ;;
     *) die "Unsupported wallpaper backend: $BACKEND" ;;
 esac
 
@@ -40,6 +40,34 @@ done
 
 if [[ "$BACKEND" == "serpantinum" ]]; then
     exec "$SCRIPT_DIR/apply-serpantinum.sh" "${PAIRS[@]}"
+fi
+
+if [[ "$BACKEND" == "awww" ]]; then
+    command -v awww >/dev/null 2>&1 ||
+        die "awww was not found."
+
+    set -- "${PAIRS[@]}"
+
+    while (( $# >= 2 )); do
+        output="$1"
+        file="$2"
+        shift 2
+
+        [[ "$output" != *,* ]] ||
+            die "awww output names cannot contain commas."
+
+        if ! reply="$(awww img \
+            --outputs "$output" \
+            --resize stretch \
+            --transition-type none \
+            -- "$file" 2>&1)"
+        then
+            die "awww Apply failed for $output: $reply"
+        fi
+    done
+
+    printf 'Wallpapers applied through awww.\n'
+    exit 0
 fi
 
 command -v hyprctl >/dev/null 2>&1 ||
