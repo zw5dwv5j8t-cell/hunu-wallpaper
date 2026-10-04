@@ -57,7 +57,7 @@ Item {
     property string statusMessage: "Choose a wallpaper."
 
     property bool applying: false
-    readonly property bool busy: upscaleProcess.running || splitterProcess.running || applying || outputSaveProcess.running
+    readonly property bool busy: upscaleProcess.running || splitterProcess.running || applying || outputSaveProcess.running || backendSaveProcess.running
     property var pendingSplitCommand: []
 
     signal monitorSetupRequested()
@@ -144,6 +144,18 @@ Item {
             return
         probeProcess.command = commandBase(true)
         probeProcess.running = true
+    }
+
+    function saveApplyBackend(backend) {
+        if (busy || configPath === "" || backend === applyBackend)
+            return
+        backendSaveProcess.requestedBackend = backend
+        backendSaveProcess.command = [
+            scriptPath("save-apply-backend.sh"), configPath, backend
+        ]
+        processError = ""
+        statusMessage = "Saving Apply backend…"
+        backendSaveProcess.running = true
     }
 
     function loadOutputDirectory() {
@@ -324,6 +336,11 @@ Item {
                 for (let line of text.split("\n")) {
                     if (line.startsWith("OUTPUT_DIR="))
                         root.outputDirectory = line.substring(11)
+                    else if (line.startsWith("APPLY_BACKEND=")) {
+                        const backend = line.substring(14)
+                        root.applyBackend = backend === "hyprpaper"
+                            ? "hyprpaper" : "serpantinum"
+                    }
                 }
             }
         }
@@ -332,6 +349,33 @@ Item {
                 if (text.trim() !== "")
                     root.processError = text.trim()
             }
+        }
+    }
+
+    Process {
+        id: backendSaveProcess
+        property string requestedBackend: ""
+        property string errorText: ""
+
+        onRunningChanged: {
+            if (running)
+                errorText = ""
+        }
+
+        stdout: StdioCollector {}
+        stderr: StdioCollector {
+            onStreamFinished: backendSaveProcess.errorText = text.trim()
+        }
+
+        onExited: function(exitCode) {
+            if (exitCode !== 0) {
+                root.processError = errorText !== ""
+                    ? errorText : "Could not save Apply backend."
+                root.statusMessage = "Apply backend was not changed."
+                return
+            }
+            root.applyBackend = requestedBackend
+            root.statusMessage = "Apply backend saved."
         }
     }
 
@@ -790,8 +834,11 @@ Item {
                 model: ["Serpantinum", "hyprpaper"]
                 currentIndex: root.applyBackend === "hyprpaper" ? 1 : 0
                 onActivated: function(index) {
-                    root.applyBackend = index === 1
-                        ? "hyprpaper" : "serpantinum"
+                    root.saveApplyBackend(index === 1
+                        ? "hyprpaper" : "serpantinum")
+                    currentIndex = Qt.binding(function() {
+                        return root.applyBackend === "hyprpaper" ? 1 : 0
+                    })
                 }
             }
             Button {

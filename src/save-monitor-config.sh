@@ -62,6 +62,21 @@ if [[ -f "$CONFIG_PATH" ]]; then
     )"
 fi
 
+SAVED_APPLY_BACKEND="serpantinum"
+
+if [[ -f "$CONFIG_PATH" ]]; then
+    SAVED_APPLY_BACKEND="$(
+        unset APPLY_BACKEND
+        source "$CONFIG_PATH"
+        printf '%s' "${APPLY_BACKEND:-serpantinum}"
+    )"
+fi
+
+case "$SAVED_APPLY_BACKEND" in
+    serpantinum|hyprpaper) ;;
+    *) SAVED_APPLY_BACKEND="serpantinum" ;;
+esac
+
 OUTPUT_DIR="$(dirname -- "$CONFIG_PATH")"
 mkdir -p "$OUTPUT_DIR"
 
@@ -91,6 +106,7 @@ write_monitor() {
     echo
     echo '# General'
     printf 'OUTPUT_DIR=%q\n' "$WALLPAPER_OUTPUT_DIR"
+    printf 'APPLY_BACKEND=%q\n' "$SAVED_APPLY_BACKEND"
 } > "$tmp"
 
 write_monitor 1 true "$M1_OUTPUT" "$M1_WIDTH" "$M1_HEIGHT" "$M1_PW" "$M1_PH" "$M1_X" "$M1_Y"

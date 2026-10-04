@@ -96,6 +96,7 @@ required_files=(
     "src/detect-monitors.sh"
     "src/save-monitor-config.sh"
     "src/save-output-dir.sh"
+    "src/save-apply-backend.sh"
     "src/check-monitor-config.sh"
     "src/load-monitor-config.sh"
     "src/detect-theme.sh"
@@ -167,6 +168,7 @@ app_files=(
     "detect-monitors.sh"
     "save-monitor-config.sh"
     "save-output-dir.sh"
+    "save-apply-backend.sh"
     "check-monitor-config.sh"
     "load-monitor-config.sh"
     "check-upscaler.sh"
@@ -185,6 +187,7 @@ chmod +x \
     "$CONFIG_DIR/detect-monitors.sh" \
     "$CONFIG_DIR/save-monitor-config.sh" \
     "$CONFIG_DIR/save-output-dir.sh" \
+    "$CONFIG_DIR/save-apply-backend.sh" \
     "$CONFIG_DIR/check-monitor-config.sh" \
     "$CONFIG_DIR/load-monitor-config.sh" \
     "$CONFIG_DIR/detect-theme.sh" \
