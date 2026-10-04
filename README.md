@@ -29,7 +29,8 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Optional Real-ESRGAN AI upscaling at 2×, 3×, or 4×
 - Sequential output sets using `_a`, `_b`, and `_c`
 - Saved monitor setup with first-run configuration
-- Optional Serpantinum wallpaper Apply integration
+- Optional Apply through Serpantinum, hyprpaper, or awww
+- Saved Apply backend selection with live IPC readiness checks
 - Optional Serpantinum/Matugen colors with a built-in fallback theme
 - XDG-aware installer
 - Existing monitor configuration is preserved when reinstalling
@@ -50,13 +51,19 @@ Required:
 - `jq`
 - `flock`
 - `sha256sum`
+- `timeout`
 
 Optional:
 
-- Serpantinum — enables automatic wallpaper Apply integration and use of the
-  current Serpantinum/Matugen color palette.
+- Serpantinum — optional wallpaper Apply backend and provider of the current
+  Serpantinum/Matugen color palette.
+- hyprpaper — optional wallpaper Apply backend for Hyprland.
+- awww — optional wallpaper Apply backend for compatible Wayland compositors.
 - Real-ESRGAN (`realesrgan-ncnn-vulkan`) — enables optional AI upscaling.
   Hunu works normally without it.
+
+Apply requires the selected backend to be running and responding to IPC.
+Wallpaper generation works without any Apply backend.
 
 The installer checks dependencies but does not install system packages.
 
@@ -189,11 +196,38 @@ Controls are locked while generating or applying wallpapers. Generation jobs
 targeting the same output directory run sequentially to prevent output-set
 collisions.
 
-When Serpantinum is detected, **Apply** sends each generated wallpaper to its
-corresponding output through Serpantinum's Quickshell wallpaper IPC.
+Choose **Serpantinum**, **hyprpaper**, or **awww** from **Apply using**.
+The selection is remembered across launches and monitor-setup saves.
+Existing configurations without a saved backend default to Serpantinum.
 
-Without Serpantinum, wallpaper generation still works; applying the resulting
-files is left to the user's wallpaper system.
+| Backend | Apply method |
+| --- | --- |
+| Serpantinum | Serpantinum's Quickshell wallpaper IPC |
+| hyprpaper | Per-output wallpaper commands through `hyprctl` |
+| awww | Per-output image commands through the awww client |
+
+Hunu checks the selected backend's IPC readiness while idle, approximately every
+five seconds. The workspace shows its readiness status. Apply is enabled when
+a generated set is available and the backend is responding. Each wallpaper is
+sent to its assigned monitor output. Switching backends keeps the generated
+files available for Apply.
+
+Hunu does not start or stop wallpaper services. Configure your preferred
+backend to start with your desktop session, and use one wallpaper renderer
+at a time. For hyprpaper, use a valid startup configuration with a wallpaper
+assignment. An empty startup configuration did not keep hyprpaper 0.8.4's IPC
+available in testing.
+
+The awww adapter uses stretch resizing and disables transitions when applying
+Hunu's finished monitor crops. It does not add a further crop to the generated
+composition.
+
+Applying through hyprpaper or awww sets the wallpapers without requesting
+Serpantinum/Matugen theme regeneration. Optional Serpantinum theme colors
+remain independent of the selected Apply backend.
+
+If no supported wallpaper backend is running, Hunu can still generate files
+for use with another wallpaper manager.
 
 ## Run manually
 
@@ -235,12 +269,15 @@ packaging/
   hunu-wallpaper.desktop
 src/
   apply-serpantinum.sh
+  apply-wallpapers.sh
+  check-apply-backend.sh
   check-monitor-config.sh
   check-upscaler.sh
   detect-monitors.sh
   detect-theme.sh
   load-monitor-config.sh
   qmldir
+  save-apply-backend.sh
   save-monitor-config.sh
   save-output-dir.sh
   SetupView.qml
@@ -263,7 +300,8 @@ first-run setup.
 ## Notes
 
 - Hunu Wallpaper Splitter currently targets **Hyprland + Quickshell**.
-- Automatic Apply is currently **Serpantinum-specific**.
+- Apply supports Serpantinum, hyprpaper, and awww.
+- Broader Apply backend support does not change Hunu's current Hyprland monitor-detection requirement.
 - `config.conf` is trusted local Bash configuration and is sourced by the
   configuration helpers.
 - Monitor physical placement is user-configured because display protocols do
