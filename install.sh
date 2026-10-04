@@ -63,7 +63,7 @@ printf '============================================\n\n'
 
 missing=()
 
-for cmd in hyprctl quickshell magick jq bash awk flock sha256sum; do
+for cmd in hyprctl quickshell magick jq bash awk flock sha256sum timeout; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         missing+=("$cmd")
     fi
@@ -101,6 +101,7 @@ required_files=(
     "src/load-monitor-config.sh"
     "src/detect-theme.sh"
     "src/check-upscaler.sh"
+    "src/check-apply-backend.sh"
     "src/upscale-image.sh"
     "src/apply-serpantinum.sh"
     "src/apply-wallpapers.sh"
@@ -172,6 +173,7 @@ app_files=(
     "check-monitor-config.sh"
     "load-monitor-config.sh"
     "check-upscaler.sh"
+    "check-apply-backend.sh"
     "upscale-image.sh"
     "detect-theme.sh"
     "apply-serpantinum.sh"
@@ -194,6 +196,7 @@ chmod +x \
     "$CONFIG_DIR/apply-serpantinum.sh" \
     "$CONFIG_DIR/apply-wallpapers.sh" \
     "$CONFIG_DIR/check-upscaler.sh" \
+    "$CONFIG_DIR/check-apply-backend.sh" \
     "$CONFIG_DIR/upscale-image.sh"
 
 # Deliberately do NOT install config/config.conf.

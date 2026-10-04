@@ -13,6 +13,14 @@ Item {
     property string sourceUrl: ""
     property string outputDirectory: ""
     property string applyBackend: "serpantinum"
+    property bool backendReady: false
+    property string backendStatus: "Checking wallpaper backend…"
+
+    onApplyBackendChanged: {
+        backendReady = false
+        backendStatus = "Checking wallpaper backend…"
+        checkApplyBackend()
+    }
     property string mode: "linked"
 
     property int monitorCount: 0
@@ -144,6 +152,16 @@ Item {
             return
         probeProcess.command = commandBase(true)
         probeProcess.running = true
+    }
+
+    function checkApplyBackend() {
+        if (backendCheckProcess.running)
+            return
+        backendCheckProcess.checkedBackend = applyBackend
+        backendCheckProcess.command = [
+            scriptPath("check-apply-backend.sh"), applyBackend
+        ]
+        backendCheckProcess.running = true
     }
 
     function saveApplyBackend(backend) {
@@ -302,7 +320,7 @@ Item {
     }
 
     function applyGenerated() {
-        if (!generatedReady())
+        if (!generatedReady() || !backendReady)
             return
         let a = [
             scriptPath("apply-wallpapers.sh"),
@@ -348,6 +366,48 @@ Item {
             onStreamFinished: {
                 if (text.trim() !== "")
                     root.processError = text.trim()
+            }
+        }
+    }
+
+    Timer {
+        interval: 5000
+        repeat: true
+        triggeredOnStart: true
+        running: !root.busy
+        onTriggered: root.checkApplyBackend()
+    }
+
+    Process {
+        id: backendCheckProcess
+        property string checkedBackend: ""
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (backendCheckProcess.checkedBackend !== root.applyBackend)
+                    return
+
+                let ready = false
+                let reason = "Could not determine backend readiness."
+
+                for (let line of text.split("\n")) {
+                    if (line.startsWith("BACKEND_READY="))
+                        ready = line.substring(14) === "true"
+                    else if (line.startsWith("BACKEND_REASON="))
+                        reason = line.substring(15)
+                }
+
+                root.backendReady = ready
+                root.backendStatus = reason
+            }
+        }
+
+        stderr: StdioCollector {}
+
+        onExited: function(exitCode) {
+            if (exitCode !== 0 && checkedBackend === root.applyBackend) {
+                root.backendReady = false
+                root.backendStatus = "Backend check failed with code " + exitCode + "."
             }
         }
     }
@@ -1145,6 +1205,13 @@ Item {
                         id: resultContent
                         width: resultScroll.width - 12
                         spacing: 3
+                        Label {
+                            width: parent.width
+                            text: root.backendStatus
+                            color: root.backendReady ? Theme.success : Theme.subtext
+                            font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                        }
 
                         Label {
                             width: parent.width
@@ -1200,7 +1267,7 @@ Item {
                     Layout.minimumWidth: 96
                     Layout.maximumWidth: 96
                     text: root.applying ? "Applying…" : "Apply"
-                    enabled: root.generatedReady()
+                    enabled: root.generatedReady() && root.backendReady
                         && !upscaleProcess.running
                         && !splitterProcess.running
                         && !root.applying
