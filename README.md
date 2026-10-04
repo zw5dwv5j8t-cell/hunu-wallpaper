@@ -24,7 +24,7 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - **Linked / Seam** mode for one physical composition across displays
 - **Maximum Quality** mode for independent source crops
 - Physical-layout preview
-- Wallpaper positioning controls
+- Wallpaper positioning controls with editable integer fields for exact offsets
 - Source-resolution quality analysis with an upscale recommendation
 - Optional Real-ESRGAN AI upscaling at 2×, 3×, or 4×
 - Sequential output sets using `_a`, `_b`, and `_c`
@@ -33,6 +33,10 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Optional Serpantinum/Matugen colors with a built-in fallback theme
 - XDG-aware installer
 - Existing monitor configuration is preserved when reinstalling
+- Persistent output-folder chooser
+- Generation settings captured at job start, with controls locked while processing
+- Reusable AI cache with per-entry locking
+- Concurrent generation protected by an output-directory lock
 
 ## Requirements
 
@@ -44,6 +48,8 @@ Required:
 - Bash
 - `awk`
 - `jq`
+- `flock`
+- `sha256sum`
 
 Optional:
 
@@ -81,7 +87,9 @@ HUNU_APP_NAME=hunu-wallpaper-test ./install.sh
 ```
 
 The application, launcher, icon, and backup paths use that name, keeping the
-test installation separate from the normal one.
+test installation separate from the normal one. Application names must start
+with a letter or number and contain only letters, numbers, dots, underscores,
+or hyphens.
 
 ## First run
 
@@ -143,6 +151,20 @@ with ImageMagick to the requested size.
 Without Real-ESRGAN, Hunu still analyzes source quality and generates
 wallpapers normally from the original image.
 
+Completed AI results are cached by source contents, requested scale, model
+name, and helper version. Matching requests reuse the cached image; simultaneous
+requests for the same cache entry wait for its creation.
+
+The default cache location is
+`${XDG_CACHE_HOME:-$HOME/.cache}/hunu-wallpaper/`. Alternate installations use
+their own application-name namespace. Cached files remain until removed or
+until Hunu is uninstalled.
+
+The helper rejects an output that refers to its source file, including through
+symlinks or hard links. Results are written to temporary files and replace the
+destination only after successful completion. Failed upscaling preserves any
+existing destination. AI failures display diagnostic details in the workspace.
+
 ## Generate and Apply
 
 **Generate** creates the wallpaper files without changing the desktop.
@@ -153,7 +175,19 @@ Generated wallpapers are written to:
 ~/Pictures/Wallpapers
 ```
 
-unless `OUTPUT_DIR` is changed in the saved configuration.
+by default. Use **Choose Folder** beside **Save to** to select another existing,
+writable directory. The selection is remembered across launches and preserved
+when saving monitor calibration. Previously generated wallpapers are left
+in their original locations.
+
+Use the sliders for broad positioning adjustments, or type an exact integer
+into the X/Y fields. Press Enter or leave the field to apply the value.
+Values are limited to the valid crop range. **Center / Reset** returns all
+offsets to zero.
+
+Controls are locked while generating or applying wallpapers. Generation jobs
+targeting the same output directory run sequentially to prevent output-set
+collisions.
 
 When Serpantinum is detected, **Apply** sends each generated wallpaper to its
 corresponding output through Serpantinum's Quickshell wallpaper IPC.
@@ -208,6 +242,7 @@ src/
   load-monitor-config.sh
   qmldir
   save-monitor-config.sh
+  save-output-dir.sh
   SetupView.qml
   shell.qml
   split-wallpaper.sh
@@ -229,6 +264,8 @@ first-run setup.
 
 - Hunu Wallpaper Splitter currently targets **Hyprland + Quickshell**.
 - Automatic Apply is currently **Serpantinum-specific**.
+- `config.conf` is trusted local Bash configuration and is sourced by the
+  configuration helpers.
 - Monitor physical placement is user-configured because display protocols do
   not provide the real-world bezel-inclusive arrangement needed for accurate
   seam composition.
