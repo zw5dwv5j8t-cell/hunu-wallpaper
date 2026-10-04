@@ -51,18 +51,27 @@ QtObject {
         try {
             const data = JSON.parse(contents)
 
-            // Material/Matugen roles currently exported by Serpantinum.
-            // Every value has an independent Hunu fallback.
-            base = data.background ?? fallbackBase
-            surface = data.surface ?? base
-            text = data.on_background
+            // Support Serpantinum's palette and Material/Matugen roles.
+            base = data.base
+                ?? data.background
+                ?? fallbackBase
+            surface = data.surface0
+                ?? data.surface
+                ?? fallbackSurface
+            text = data.text
+                ?? data.on_background
                 ?? data.onBackground
                 ?? fallbackText
-            subtext = data.on_surface_variant
+            subtext = data.subtext0
+                ?? data.on_surface_variant
                 ?? data.onSurfaceVariant
                 ?? fallbackSubtext
-            muted = data.outline ?? fallbackMuted
-            success = data.primary ?? fallbackSuccess
+            muted = data.subtext1
+                ?? data.outline
+                ?? fallbackMuted
+            success = data.green
+                ?? data.primary
+                ?? fallbackSuccess
 
             provider = "serpantinum"
         } catch (e) {
