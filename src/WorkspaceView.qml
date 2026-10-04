@@ -342,7 +342,7 @@ Item {
 
             root.statusMessage = "Upscaling complete — generating wallpapers…"
             splitterProcess.command = root.commandForSource(
-                root.upscaledSourcePath, false, root.upscaleScale)
+                root.upscaledSourcePath, false, root.mode === "quality" ? root.upscaleScale : 1)
             splitterProcess.running = true
         }
     }
