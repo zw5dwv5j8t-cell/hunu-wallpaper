@@ -327,6 +327,75 @@ probe_common() {
     done
 }
 
+recommended_scale_for_dimensions() {
+    local required_w="$1"
+    local required_h="$2"
+
+    awk -v sw="$SRC_W" -v sh="$SRC_H" -v rw="$required_w" -v rh="$required_h" '
+        BEGIN {
+            scale_w = rw / sw
+            scale_h = rh / sh
+            scale = (scale_w > scale_h ? scale_w : scale_h)
+
+            if (scale <= 1.0)
+                print 1
+            else if (scale <= 2.0)
+                print 2
+            else if (scale <= 3.0)
+                print 3
+            else if (scale <= 4.0)
+                print 4
+            else
+                print 0
+        }'
+}
+
+linked_quality_probe() {
+    local max_ppu="0"
+    local ideal_w ideal_h recommended sufficient
+
+    # Determine the highest pixel density required by any active monitor.
+    #
+    # PHYS_W / PHYS_H use the same physical units as DESKTOP_W/H, so
+    # PIXEL_W / PHYS_W and PIXEL_H / PHYS_H are pixels per physical unit.
+    for i in "${ACTIVE[@]}"; do
+        max_ppu="$(
+            awk \
+                -v current="$max_ppu" \
+                -v pw="${PIXEL_W[$i]}" \
+                -v ph="${PIXEL_H[$i]}" \
+                -v physw="${PHYS_W[$i]}" \
+                -v physh="${PHYS_H[$i]}" '
+                BEGIN {
+                    x = pw / physw
+                    y = ph / physh
+                    candidate = (x > y ? x : y)
+                    print (candidate > current ? candidate : current)
+                }'
+        )"
+    done
+
+    ideal_w="$(awk -v d="$DESKTOP_W" -v p="$max_ppu" \
+        'BEGIN { printf "%.0f", d * p }')"
+    ideal_h="$(awk -v d="$DESKTOP_H" -v p="$max_ppu" \
+        'BEGIN { printf "%.0f", d * p }')"
+
+    recommended="$(recommended_scale_for_dimensions "$ideal_w" "$ideal_h")"
+
+    if awk -v sw="$SRC_W" -v sh="$SRC_H" -v iw="$ideal_w" -v ih="$ideal_h" \
+        'BEGIN { exit !(sw >= iw && sh >= ih) }'
+    then
+        sufficient=true
+    else
+        sufficient=false
+    fi
+
+    printf 'IDEAL_W=%s\n' "$ideal_w"
+    printf 'IDEAL_H=%s\n' "$ideal_h"
+    printf 'SOURCE_SUFFICIENT=%s\n' "$sufficient"
+    printf 'RECOMMENDED_SCALE=%s\n' "$recommended"
+}
+
 linked_scale() {
     awk -v sw="$SRC_W" -v sh="$SRC_H" -v dw="$DESKTOP_W" -v dh="$DESKTOP_H" '
         BEGIN {
@@ -345,6 +414,7 @@ probe_linked() {
     base_y=$(( (scaled_h - DESKTOP_H) / 2 ))
 
     probe_common
+    linked_quality_probe
     printf 'DESKTOP_W=%s\n' "$DESKTOP_W"
     printf 'DESKTOP_H=%s\n' "$DESKTOP_H"
     printf 'PREVIEW_W=%s\n' "$scaled_w"
@@ -391,8 +461,71 @@ quality_geometry() {
         }'
 }
 
+quality_required_dimensions() {
+    local required_w=0
+    local required_h=0
+
+    # Maximum Quality creates an independent crop for every monitor.
+    #
+    # For each monitor, determine how large the source must be to contain
+    # a crop with the monitor's aspect ratio at native output resolution.
+    # The final requirement must satisfy every active monitor.
+    for i in "${ACTIVE[@]}"; do
+        local target_w="${PIXEL_W[$i]}"
+        local target_h="${PIXEL_H[$i]}"
+        local needed_w needed_h
+
+        read -r needed_w needed_h < <(
+            awk \
+                -v sw="$SRC_W" \
+                -v sh="$SRC_H" \
+                -v tw="$target_w" \
+                -v th="$target_h" '
+                BEGIN {
+                    source_ratio = sw / sh
+                    target_ratio = tw / th
+
+                    if (source_ratio > target_ratio) {
+                        needed_w = tw * (source_ratio / target_ratio)
+                        needed_h = th
+                    } else {
+                        needed_w = tw
+                        needed_h = th * (target_ratio / source_ratio)
+                    }
+
+                    printf "%.0f %.0f\n", needed_w, needed_h
+                }'
+        )
+
+        (( needed_w > required_w )) && required_w="$needed_w"
+        (( needed_h > required_h )) && required_h="$needed_h"
+    done
+
+    printf '%s %s\n' "$required_w" "$required_h"
+}
+
+quality_quality_probe() {
+    local ideal_w ideal_h recommended sufficient
+
+    read -r ideal_w ideal_h < <(quality_required_dimensions)
+
+    recommended="$(recommended_scale_for_dimensions "$ideal_w" "$ideal_h")"
+
+    if (( SRC_W >= ideal_w && SRC_H >= ideal_h )); then
+        sufficient=true
+    else
+        sufficient=false
+    fi
+
+    printf 'IDEAL_W=%s\n' "$ideal_w"
+    printf 'IDEAL_H=%s\n' "$ideal_h"
+    printf 'SOURCE_SUFFICIENT=%s\n' "$sufficient"
+    printf 'RECOMMENDED_SCALE=%s\n' "$recommended"
+}
+
 probe_quality() {
     probe_common
+    quality_quality_probe
     printf 'PREVIEW_W=%s\n' "$SRC_W"
     printf 'PREVIEW_H=%s\n' "$SRC_H"
 
