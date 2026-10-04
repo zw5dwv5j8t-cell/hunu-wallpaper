@@ -291,7 +291,10 @@ Item {
     function applyGenerated() {
         if (!generatedReady())
             return
-        let a = [scriptPath("apply-serpantinum.sh")]
+        let a = [
+            scriptPath("apply-wallpapers.sh"),
+            "--backend", "serpantinum"
+        ]
         for (let slot of activeSlots) {
             a.push(outputName[slot])
             a.push(generatedFile[slot])
