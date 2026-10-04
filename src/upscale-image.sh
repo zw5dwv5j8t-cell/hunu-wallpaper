@@ -78,6 +78,11 @@ if [[ ! -f "$INPUT" ]]; then
     exit 1
 fi
 
+if [[ "$INPUT" -ef "$OUTPUT" ]]; then
+    echo "ERROR: Input and output refer to the same file. Source image was left untouched." >&2
+    exit 2
+fi
+
 if ! command -v realesrgan-ncnn-vulkan >/dev/null 2>&1; then
     echo "ERROR: realesrgan-ncnn-vulkan is not installed." >&2
     exit 127
@@ -99,7 +104,9 @@ echo "UPSCALE_OUTPUT=$OUTPUT"
 echo "UPSCALE_SCALE=$SCALE"
 echo "UPSCALE_MODEL=$MODEL"
 
-rm -f -- "$OUTPUT"
+WORK_OUTPUT="$(mktemp --suffix=.png "$(dirname -- "$OUTPUT")/.hunu-upscale.XXXXXX")"
+TEMP_OUTPUT=""
+trap 'rm -f -- "$WORK_OUTPUT"; if [[ -n "$TEMP_OUTPUT" ]]; then rm -f -- "$TEMP_OUTPUT"; fi' EXIT
 
 # realesrgan-x4plus is a native 4x model. Although the NCNN executable accepts
 # -s 2 and -s 3, non-native scaling can produce tiled/corrupted output on some
@@ -107,11 +114,11 @@ rm -f -- "$OUTPUT"
 if [[ "$SCALE" == "4" ]]; then
     if ! realesrgan-ncnn-vulkan \
         -i "$INPUT" \
-        -o "$OUTPUT" \
+        -o "$WORK_OUTPUT" \
         -s 4 \
         -n "$MODEL"
     then
-        rm -f -- "$OUTPUT"
+        rm -f -- "$WORK_OUTPUT"
         echo "ERROR: Real-ESRGAN failed." >&2
         exit 1
     fi
@@ -122,7 +129,6 @@ else
     fi
 
     TEMP_OUTPUT="$(mktemp --suffix=.png "${TMPDIR:-/tmp}/hunu-upscale-4x.XXXXXX")"
-    trap 'rm -f -- "$TEMP_OUTPUT"' EXIT
 
     if ! realesrgan-ncnn-vulkan \
         -i "$INPUT" \
@@ -140,17 +146,19 @@ else
         RESIZE_PERCENT="75%"
     fi
 
-    if ! magick "$TEMP_OUTPUT" -resize "$RESIZE_PERCENT" "$OUTPUT"; then
-        rm -f -- "$OUTPUT"
+    if ! magick "$TEMP_OUTPUT" -resize "$RESIZE_PERCENT" "$WORK_OUTPUT"; then
+        rm -f -- "$WORK_OUTPUT"
         echo "ERROR: Failed to resize Real-ESRGAN output to ${SCALE}x." >&2
         exit 1
     fi
 fi
 
-if [[ ! -s "$OUTPUT" ]]; then
+if [[ ! -s "$WORK_OUTPUT" ]]; then
     echo "ERROR: Real-ESRGAN did not produce an output image." >&2
     exit 1
 fi
+
+mv -fT -- "$WORK_OUTPUT" "$OUTPUT"
 
 echo "UPSCALE_STATUS=OK"
 echo "UPSCALE_OUTPUT=$OUTPUT"
