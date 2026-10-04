@@ -500,6 +500,55 @@ Item {
         }
     }
 
+    component OffsetInput: TextField {
+        id: field
+        required property int slot
+        required property string axis
+
+        readonly property int currentValue: axis === "x"
+            ? root.offsetX[slot] : root.offsetY[slot]
+        readonly property int minimum: axis === "x"
+            ? root.xMin[slot] : root.yMin[slot]
+        readonly property int maximum: axis === "x"
+            ? root.xMax[slot] : root.yMax[slot]
+
+        Layout.preferredWidth: 80
+        text: String(currentValue)
+        color: Theme.text
+        horizontalAlignment: TextInput.AlignRight
+        selectByMouse: true
+        validator: IntValidator {}
+        background: Rectangle {
+            radius: 6
+            color: Theme.base
+            border.width: 1
+            border.color: field.activeFocus
+                ? Theme.subtext : Qt.alpha(Theme.subtext, 0.35)
+        }
+
+        function commitValue() {
+            if (acceptableInput) {
+                const value = Math.max(minimum,
+                    Math.min(maximum, Number(text)))
+                if (value !== currentValue)
+                    root.setOffset(slot, axis, value)
+            }
+            text = String(currentValue)
+        }
+
+        onCurrentValueChanged: {
+            if (!activeFocus)
+                text = String(currentValue)
+        }
+        onAccepted: commitValue()
+        onActiveFocusChanged: {
+            if (activeFocus)
+                selectAll()
+            else
+                commitValue()
+        }
+    }
+
     component OffsetCard: Rectangle {
         required property int slot
         Layout.fillWidth: true
@@ -537,11 +586,9 @@ Item {
                     enabled: from !== to
                     onMoved: root.setOffset(parent.parent.parent.slot, "x", value)
                 }
-                Label {
-                    text: String(root.offsetX[parent.parent.parent.slot])
-                    color: Theme.subtext
-                    Layout.preferredWidth: 58
-                    horizontalAlignment: Text.AlignRight
+                OffsetInput {
+                    slot: parent.parent.parent.slot
+                    axis: "x"
                 }
             }
 
@@ -557,11 +604,9 @@ Item {
                     enabled: from !== to
                     onMoved: root.setOffset(parent.parent.parent.slot, "y", value)
                 }
-                Label {
-                    text: String(root.offsetY[parent.parent.parent.slot])
-                    color: Theme.subtext
-                    Layout.preferredWidth: 58
-                    horizontalAlignment: Text.AlignRight
+                OffsetInput {
+                    slot: parent.parent.parent.slot
+                    axis: "y"
                 }
             }
 
