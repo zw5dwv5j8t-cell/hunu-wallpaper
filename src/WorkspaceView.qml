@@ -14,6 +14,7 @@ Item {
     property string mode: "linked"
 
     property int monitorCount: 0
+    property var activeSlots: []
     property int previewW: 1
     property int previewH: 1
     property int desktopW: 1
@@ -192,6 +193,13 @@ Item {
         physX = px; physY = py; physW = pww; physH = phh
         cropW = cw; cropH = ch; baseX = bx; baseY = by
         xMin = xmin; xMax = xmax; yMin = ymin; yMax = ymax
+        let slots = []
+        for (let i = 1; i <= 3; ++i) {
+            if (valueAt(values, "MONITOR_" + i + "_ENABLED", "false") === "true")
+                slots.push(i)
+        }
+        activeSlots = slots
+        monitorCount = slots.length
     }
 
     function generate() {
@@ -256,9 +264,12 @@ Item {
     }
 
     function generatedReady() {
-        if (monitorCount < 1) return false
-        for (let i = 1; i <= monitorCount; ++i)
-            if (generatedFile[i] === "") return false
+        if (activeSlots.length < 1)
+            return false
+        for (let slot of activeSlots) {
+            if (generatedFile[slot] === "")
+                return false
+        }
         return true
     }
 
@@ -266,9 +277,9 @@ Item {
         if (!generatedReady())
             return
         let a = [scriptPath("apply-serpantinum.sh")]
-        for (let i = 1; i <= monitorCount; ++i) {
-            a.push(outputName[i])
-            a.push(generatedFile[i])
+        for (let slot of activeSlots) {
+            a.push(outputName[slot])
+            a.push(generatedFile[slot])
         }
         applying = true
         processError = ""
@@ -699,10 +710,10 @@ Item {
                 property real unitScale: width / Math.max(1, root.desktopW)
 
                 Repeater {
-                    model: root.monitorCount
+                    model: root.activeSlots.length
                     delegate: MonitorPreview {
                         required property int index
-                        slot: index + 1
+                        slot: root.activeSlots[index]
                         linked: true
                         x: root.physX[slot] * linkedPreview.unitScale
                         y: root.physY[slot] * linkedPreview.unitScale
@@ -719,12 +730,12 @@ Item {
                 visible: root.mode === "quality"
 
                 Repeater {
-                    model: root.monitorCount
+                    model: root.activeSlots.length
                     delegate: Item {
                         required property int index
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        property int slot: index + 1
+                        property int slot: root.activeSlots[index]
 
                         MonitorPreview {
                             anchors.centerIn: parent
@@ -919,10 +930,10 @@ Item {
             Layout.fillWidth: true
             spacing: 12
             Repeater {
-                model: root.monitorCount
+                model: root.activeSlots.length
                 delegate: OffsetCard {
                     required property int index
-                    slot: index + 1
+                    slot: root.activeSlots[index]
                 }
             }
         }
@@ -969,10 +980,10 @@ Item {
                         }
 
                         Repeater {
-                            model: root.monitorCount
+                            model: root.activeSlots.length
                             delegate: Label {
                                 required property int index
-                                property int slot: index + 1
+                                property int slot: root.activeSlots[index]
                                 width: resultContent.width
                                 visible: root.generatedFile[slot] !== ""
                                 text: "Monitor " + slot + " · " + root.outputName[slot]
