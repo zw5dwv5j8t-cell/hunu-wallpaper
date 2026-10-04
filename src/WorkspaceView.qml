@@ -812,7 +812,7 @@ Item {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 255
+            Layout.preferredHeight: 210
 
             Item {
                 id: linkedPreview
