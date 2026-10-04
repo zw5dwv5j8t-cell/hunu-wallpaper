@@ -26,6 +26,10 @@ Item {
     property bool sourceSufficient: true
     property int recommendedScale: 1
 
+    property int upscaleScale: 1
+    property bool upscalerAvailable: false
+    property bool upscalerChecked: false
+
     property var outputName: ["", "", "", ""]
     property var pixelW: [0, 0, 0, 0]
     property var pixelH: [0, 0, 0, 0]
@@ -50,6 +54,7 @@ Item {
     property bool applying: false
 
     signal monitorSetupRequested()
+    Component.onCompleted: checkUpscaler()
 
     function scriptPath(name) {
         return Qt.resolvedUrl(name).toString().replace("file://", "")
@@ -123,6 +128,11 @@ Item {
             return
         probeProcess.command = commandBase(true)
         probeProcess.running = true
+    }
+
+    function checkUpscaler() {
+        upscalerCheckProcess.command = [scriptPath("check-upscaler.sh")]
+        upscalerCheckProcess.running = true
     }
 
     function applyProbe(text) {
@@ -271,6 +281,42 @@ Item {
                 root.statusMessage = "Generation finished, but output paths were not returned."
             else
                 root.statusMessage = "Wallpapers generated — ready to apply."
+        }
+    }
+
+    Process {
+        id: upscalerCheckProcess
+    
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let available = false
+    
+                for (let line of text.trim().split("\n")) {
+                    const p = line.indexOf("=")
+                    if (p < 0)
+                        continue
+    
+                    const key = line.substring(0, p).trim()
+                    const value = line.substring(p + 1).trim()
+    
+                    if (key === "UPSCALER_AVAILABLE")
+                        available = value === "true"
+                }
+    
+                root.upscalerAvailable = available
+                root.upscalerChecked = true
+    
+                if (!available)
+                    root.upscaleScale = 1
+            }
+        }
+    
+        onExited: function(exitCode) {
+            if (exitCode !== 0) {
+                root.upscalerAvailable = false
+                root.upscalerChecked = true
+                root.upscaleScale = 1
+            }
         }
     }
 
@@ -596,7 +642,7 @@ Item {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 86
+            Layout.preferredHeight: 112
             radius: 10
             color: Theme.surface
             border.width: 1
@@ -631,31 +677,73 @@ Item {
                 }
         
                 ColumnLayout {
-                    spacing: 3
-        
+                    spacing: 5
+                
                     Label {
                         Layout.alignment: Qt.AlignRight
-        
+                
                         text: root.sourceSufficient
                             ? "Source quality: Excellent"
                             : "Source quality: Below recommended"
-        
+                
                         color: root.sourceSufficient
                             ? Theme.success
                             : Theme.text
-        
+                
                         font.bold: true
                     }
-        
+                
+                    RowLayout {
+                        Layout.alignment: Qt.AlignRight
+                        spacing: 4
+                
+                        Label {
+                            text: "AI Upscaling"
+                            color: Theme.subtext
+                            font.pixelSize: 12
+                        }
+                
+                        RadioButton {
+                            text: "Off"
+                            checked: root.upscaleScale === 1
+                            onClicked: root.upscaleScale = 1
+                        }
+                
+                        RadioButton {
+                            text: "2×"
+                            enabled: root.upscalerAvailable
+                            checked: root.upscaleScale === 2
+                            onClicked: root.upscaleScale = 2
+                        }
+                
+                        RadioButton {
+                            text: "3×"
+                            enabled: root.upscalerAvailable
+                            checked: root.upscaleScale === 3
+                            onClicked: root.upscaleScale = 3
+                        }
+                
+                        RadioButton {
+                            text: "4×"
+                            enabled: root.upscalerAvailable
+                            checked: root.upscaleScale === 4
+                            onClicked: root.upscaleScale = 4
+                        }
+                    }
+                
                     Label {
                         Layout.alignment: Qt.AlignRight
-        
-                        text: root.sourceSufficient
-                            ? "AI upscaling is not needed."
-                            : root.recommendedScale > 0
-                                ? "AI upscale recommendation: " + root.recommendedScale + "×"
-                                : "Even a 4× upscale is below the ideal resolution."
-        
+                
+                        text: !root.upscalerChecked
+                            ? "Checking Real-ESRGAN…"
+                            : !root.upscalerAvailable
+                                ? "Real-ESRGAN is not installed — AI upscaling is optional."
+                                : root.sourceSufficient
+                                    ? "No upscaling needed."
+                                    : root.recommendedScale > 0
+                                        ? "Recommended: " + root.recommendedScale + "×"
+                                        : "4× is the highest available scale and remains below ideal."
+                
                         color: Theme.muted
                         font.pixelSize: 12
                     }
