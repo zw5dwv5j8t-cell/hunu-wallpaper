@@ -117,6 +117,17 @@ or hyphens.
 
 On first launch, Hunu Wallpaper Splitter opens **Monitor Setup**.
 
+After display detection, click **Continue** to open Assign & Calibrate.
+On first run, a skippable **How to measure** guide opens over the calibration
+screen. It explains bezel-inclusive measurements, physical X/Y coordinates,
+monitor gaps, and field assignment.
+
+The animated example demonstrates X and Y separately, including positive and
+negative Y positions. **Pause / Play**, **Previous / Next**, **Skip**, and
+**Done** let you explore it at your own pace. Reopen it anytime with
+**How to measure** on the calibration screen. The guide never changes your
+monitor configuration.
+
 For each monitor you want to use:
 
 1. Assign a detected Hyprland output.
@@ -377,6 +388,7 @@ src/
   ImageQualityPanel.qml
   SettingsView.qml
   SetupLayoutPreview.qml
+  SetupGuide.qml
   SetupView.qml
   shell.qml
   split-wallpaper.sh
