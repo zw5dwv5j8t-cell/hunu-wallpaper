@@ -19,6 +19,10 @@ Item {
     signal cancelRequested()
 
     property int page: 0
+    onPageChanged: {
+        if (page === 0)
+            root.forceActiveFocus()
+    }
     property int detectedCount: 0
     property int supportedCount: 0
     property bool hasExtraMonitors: false
@@ -430,10 +434,14 @@ Item {
         required property int slot
         required property int assignedIndex
         signal outputSelected(int detectorIndex)
-        property alias widthValue: widthBox.numberValue
-        property alias heightValue: heightBox.numberValue
-        property alias xValue: xBox.numberValue
-        property alias yValue: yBox.numberValue
+        property real widthValue: 0
+        property real heightValue: 0
+        property real xValue: 0
+        property real yValue: 0
+        signal widthEdited(real value)
+        signal heightEdited(real value)
+        signal xEdited(real value)
+        signal yEdited(real value)
 
         Layout.fillWidth: true
         implicitHeight: body.implicitHeight + 28
@@ -491,10 +499,20 @@ Item {
                 Item { Layout.fillWidth: true }
 
                 Label { text: "W"; color: Theme.subtext }
-                HunuNumberInput { id: widthBox }
+                HunuNumberInput {
+                    numberValue: setupCard.widthValue
+                    onValueEdited: function(value) {
+                        setupCard.widthEdited(value)
+                    }
+                }
                 Label { text: "cm"; color: Theme.subtext }
                 Label { text: "H"; color: Theme.subtext }
-                HunuNumberInput { id: heightBox }
+                HunuNumberInput {
+                    numberValue: setupCard.heightValue
+                    onValueEdited: function(value) {
+                        setupCard.heightEdited(value)
+                    }
+                }
                 Label { text: "cm"; color: Theme.subtext }
             }
 
@@ -510,10 +528,20 @@ Item {
                 Item { Layout.fillWidth: true }
 
                 Label { text: "X"; color: Theme.subtext }
-                HunuNumberInput { id: xBox }
+                HunuNumberInput {
+                    numberValue: setupCard.xValue
+                    onValueEdited: function(value) {
+                        setupCard.xEdited(value)
+                    }
+                }
                 Label { text: "cm"; color: Theme.subtext }
                 Label { text: "Y"; color: Theme.subtext }
-                HunuNumberInput { id: yBox }
+                HunuNumberInput {
+                    numberValue: setupCard.yValue
+                    onValueEdited: function(value) {
+                        setupCard.yEdited(value)
+                    }
+                }
                 Label { text: "cm"; color: Theme.subtext }
             }
         }
@@ -664,10 +692,10 @@ Item {
                                     root.slot1HeightCm = m.suggestedHeight
                                 }
                             }
-                            onWidthValueChanged: root.slot1WidthCm = widthValue
-                            onHeightValueChanged: root.slot1HeightCm = heightValue
-                            onXValueChanged: root.slot1Xcm = xValue
-                            onYValueChanged: root.slot1Ycm = yValue
+                            onWidthEdited: function(value) { root.slot1WidthCm = value }
+                            onHeightEdited: function(value) { root.slot1HeightCm = value }
+                            onXEdited: function(value) { root.slot1Xcm = value }
+                            onYEdited: function(value) { root.slot1Ycm = value }
                         }
 
                         SetupCard {
@@ -688,10 +716,10 @@ Item {
                                     root.slot2HeightCm = m.suggestedHeight
                                 }
                             }
-                            onWidthValueChanged: root.slot2WidthCm = widthValue
-                            onHeightValueChanged: root.slot2HeightCm = heightValue
-                            onXValueChanged: root.slot2Xcm = xValue
-                            onYValueChanged: root.slot2Ycm = yValue
+                            onWidthEdited: function(value) { root.slot2WidthCm = value }
+                            onHeightEdited: function(value) { root.slot2HeightCm = value }
+                            onXEdited: function(value) { root.slot2Xcm = value }
+                            onYEdited: function(value) { root.slot2Ycm = value }
                         }
 
                         SetupCard {
@@ -712,10 +740,10 @@ Item {
                                     root.slot3HeightCm = m.suggestedHeight
                                 }
                             }
-                            onWidthValueChanged: root.slot3WidthCm = widthValue
-                            onHeightValueChanged: root.slot3HeightCm = heightValue
-                            onXValueChanged: root.slot3Xcm = xValue
-                            onYValueChanged: root.slot3Ycm = yValue
+                            onWidthEdited: function(value) { root.slot3WidthCm = value }
+                            onHeightEdited: function(value) { root.slot3HeightCm = value }
+                            onXEdited: function(value) { root.slot3Xcm = value }
+                            onYEdited: function(value) { root.slot3Ycm = value }
                         }
 
                         RowLayout {

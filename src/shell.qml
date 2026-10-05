@@ -130,8 +130,10 @@ FloatingWindow {
                 }
 
                 onCancelRequested: {
-                    if (root.hasSavedConfig)
+                    if (root.hasSavedConfig) {
+                        setupView.forceActiveFocus()
                         root.appPage = 2
+                    }
                 }
             }
 

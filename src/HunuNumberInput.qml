@@ -4,6 +4,7 @@ import QtQuick.Controls
 TextField {
     id: numberBox
     property real numberValue: 0
+    signal valueEdited(real value)
     property bool syncingFromValue: false
 
     implicitWidth: 96
@@ -50,7 +51,7 @@ TextField {
 
         const n = Number.fromLocaleString(Qt.locale(), text)
         if (!isNaN(n))
-            numberValue = n
+            valueEdited(n)
     }
 
     onActiveFocusChanged: {
