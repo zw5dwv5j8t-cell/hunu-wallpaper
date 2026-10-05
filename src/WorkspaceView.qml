@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import Quickshell
 import Quickshell.Io
+import QtCore as Core
 
 Item {
     id: root
@@ -555,13 +556,28 @@ Item {
     FileDialog {
         id: wallpaperDialog
         title: "Choose wallpaper"
+        currentFolder: wallpaperSettings.lastFolder
         nameFilters: ["Images (*.png *.jpg *.jpeg *.webp)", "All files (*)"]
+
         onAccepted: {
-            root.sourceUrl = selectedFile.toString()
-            root.sourcePath = root.cleanPath(selectedFile)
+            const selectedUrl = selectedFile.toString()
+
+            root.sourceUrl = selectedUrl
+            root.sourcePath = root.cleanPath(selectedUrl)
             root.resetOffsets()
             root.statusMessage = "Ready."
+
+            wallpaperSettings.lastFolder = selectedUrl.substring(
+                0, selectedUrl.lastIndexOf("/") + 1)
+            wallpaperSettings.sync()
         }
+    }
+
+    Core.Settings {
+        id: wallpaperSettings
+        location: Qt.resolvedUrl("file-dialog.ini")
+        category: "WallpaperDialog"
+        property url lastFolder: ""
     }
 
     Process {
