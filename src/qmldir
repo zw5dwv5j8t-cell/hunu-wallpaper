@@ -7,3 +7,4 @@ HunuOffsetInput 1.0 HunuOffsetInput.qml
 HunuOffsetCard 1.0 HunuOffsetCard.qml
 SettingsView 1.0 SettingsView.qml
 singleton AppInfo 1.0 AppInfo.qml
+WorkspacePreview 1.0 WorkspacePreview.qml

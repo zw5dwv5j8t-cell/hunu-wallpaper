@@ -116,6 +116,7 @@ required_files=(
     "src/SettingsView.qml"
     "src/AppInfo.qml"
     "src/check-dependencies.sh"
+    "src/WorkspacePreview.qml"
 )
 
 for file in "${required_files[@]}"; do
@@ -198,6 +199,7 @@ app_files=(
     "SettingsView.qml"
     "AppInfo.qml"
     "check-dependencies.sh"
+    "WorkspacePreview.qml"
 
 )
 

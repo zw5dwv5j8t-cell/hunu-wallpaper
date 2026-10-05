@@ -863,63 +863,10 @@ Item {
             }
         }
 
-        Item {
+        WorkspacePreview {
+            workspace: root
             Layout.fillWidth: true
             Layout.preferredHeight: 210
-
-            Item {
-                id: linkedPreview
-                anchors.centerIn: parent
-                visible: root.mode === "linked"
-                width: Math.min(parent.width, parent.height * root.desktopW / Math.max(1, root.desktopH))
-                height: width * root.desktopH / Math.max(1, root.desktopW)
-                property real unitScale: width / Math.max(1, root.desktopW)
-
-                Repeater {
-                    model: root.activeSlots.length
-                    delegate: HunuMonitorPreview {
-                        workspace: root
-                        required property int index
-                        slot: root.activeSlots[index]
-                        linked: true
-                        x: root.physX[slot] * linkedPreview.unitScale
-                        y: root.physY[slot] * linkedPreview.unitScale
-                        width: root.physW[slot] * linkedPreview.unitScale
-                        height: root.physH[slot] * linkedPreview.unitScale
-                        previewScale: width / Math.max(1, root.cropW[slot])
-                    }
-                }
-            }
-
-            RowLayout {
-                anchors.fill: parent
-                spacing: 16
-                visible: root.mode === "quality"
-
-                Repeater {
-                    model: root.activeSlots.length
-                    delegate: Item {
-                        required property int index
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        property int slot: root.activeSlots[index]
-
-                        HunuMonitorPreview {
-                            workspace: root
-                            anchors.centerIn: parent
-                            slot: parent.slot
-                            linked: false
-                            width: {
-                                const ar = root.pixelW[slot] / Math.max(1, root.pixelH[slot])
-                                return Math.min(parent.width - 8, (parent.height - 8) * ar)
-                            }
-                            height: width * root.pixelH[slot] / Math.max(1, root.pixelW[slot])
-                            previewScale: Math.min(width / Math.max(1, root.cropW[slot]),
-                                                   height / Math.max(1, root.cropH[slot]))
-                        }
-                    }
-                }
-            }
         }
 
         RowLayout {
