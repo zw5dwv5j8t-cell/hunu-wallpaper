@@ -114,6 +114,8 @@ required_files=(
     "src/manage-cache.sh"
     "src/run-generation.py"
     "src/SettingsView.qml"
+    "src/AppInfo.qml"
+    "src/check-dependencies.sh"
 )
 
 for file in "${required_files[@]}"; do
@@ -194,6 +196,8 @@ app_files=(
     "manage-cache.sh"
     "run-generation.py"
     "SettingsView.qml"
+    "AppInfo.qml"
+    "check-dependencies.sh"
 
 )
 
@@ -215,6 +219,7 @@ chmod +x \
     "$CONFIG_DIR/check-upscaler.sh" \
     "$CONFIG_DIR/check-apply-backend.sh" \
     "$CONFIG_DIR/manage-cache.sh" \
+    "$CONFIG_DIR/check-dependencies.sh" \
     "$CONFIG_DIR/upscale-image.sh"
 
 # Deliberately do NOT install config/config.conf.

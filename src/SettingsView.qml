@@ -1,10 +1,72 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
 
 Dialog {
     id: dialog
     required property var workspace
+
+    property var dependencyAvailability: ({})
+    property string dependencyError: ""
+
+    readonly property var requiredCommands: [
+        "hyprctl", "quickshell", "magick", "jq", "bash",
+        "awk", "flock", "sha256sum", "timeout", "python3"
+    ]
+
+    readonly property string requiredDependencyStatus: {
+        const missing = requiredCommands.filter(function(command) {
+            return dependencyAvailability[command] === false
+        })
+        if (missing.length > 0)
+            return "Missing required commands: " + missing.join(", ")
+        if (requiredCommands.every(function(command) {
+            return dependencyAvailability[command] === true
+        }))
+            return "Required commands: all available"
+        return "Checking required commands…"
+    }
+
+    onOpened: {
+        if (!dependencyCheck.running) {
+            dependencyAvailability = ({})
+            dependencyError = ""
+            dependencyCheck.running = true
+        }
+    }
+
+    Process {
+        id: dependencyCheck
+        command: [
+            "bash",
+            Qt.resolvedUrl("check-dependencies.sh")
+                .toString().replace("file://", "")
+        ]
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let available = {}
+                for (let line of text.trim().split("\n")) {
+                    const separator = line.indexOf("=")
+                    if (separator > 0)
+                        available[line.substring(0, separator)] =
+                            line.substring(separator + 1) === "true"
+                }
+                dialog.dependencyAvailability = available
+            }
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: dialog.dependencyError = text.trim()
+        }
+
+        onExited: function(exitCode) {
+            if (exitCode !== 0 && dialog.dependencyError === "")
+                dialog.dependencyError = "Dependency check failed."
+        }
+    }
 
     // Use the existing workspace actions so settings have one source of truth.
     signal chooseOutputFolderRequested()
@@ -170,13 +232,13 @@ Dialog {
                 spacing: 12
 
                 Label {
-                    text: "Hunu Wallpaper Splitter"
+                    text: AppInfo.name
                     color: Theme.text
                     font.pixelSize: 20
                     font.bold: true
                 }
                 Label {
-                    text: "Settings development build"
+                    text: "Version " + AppInfo.version
                     color: Theme.subtext
                 }
                 Label {
@@ -192,13 +254,21 @@ Dialog {
                     color: Theme.text
                 }
                 Label {
+                    Layout.fillWidth: true
+                    text: dialog.dependencyError !== ""
+                        ? dialog.dependencyError
+                        : dialog.requiredDependencyStatus
+                    color: Theme.subtext
+                    wrapMode: Text.WordWrap
+                }
+                Label {
                     text: dialog.workspace.upscalerAvailable
                         ? "Optional AI upscaling: available"
                         : "Optional AI upscaling: unavailable"
                     color: Theme.subtext
                 }
                 Label {
-                    text: "License: MIT"
+                    text: "License: " + AppInfo.license
                     color: Theme.subtext
                 }
                 Button {
