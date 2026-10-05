@@ -119,6 +119,7 @@ required_files=(
     "src/WorkspacePreview.qml"
     "src/ImageQualityPanel.qml"
     "src/WorkspaceResults.qml"
+    "src/HunuNumberInput.qml"
 )
 
 for file in "${required_files[@]}"; do
@@ -204,6 +205,7 @@ app_files=(
     "WorkspacePreview.qml"
     "ImageQualityPanel.qml"
     "WorkspaceResults.qml"
+    "HunuNumberInput.qml"
 
 )
 
