@@ -157,6 +157,8 @@ and results remain in the fixed bottom panel.
 
 ## Wallpaper modes
 
+![Hunu Wallpaper Splitter Settings and About](assets/screenshots/settings-about.png)
+
 ### Linked / Seam
 
 Linked mode treats the monitors as windows into one physical composition. It
