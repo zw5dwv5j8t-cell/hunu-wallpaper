@@ -30,9 +30,11 @@ FloatingWindow {
     }
 
     function openMonitorSetup() {
-        // Existing users may cancel. First-run users must save a valid setup.
+        // Start each editing session from the saved configuration.
         setupView.allowCancel = hasSavedConfig
         setupView.page = 0
+        if (hasSavedConfig)
+            setupView.loadSavedSetup()
         appPage = 1
     }
 

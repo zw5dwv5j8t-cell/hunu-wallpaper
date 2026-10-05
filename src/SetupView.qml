@@ -128,41 +128,34 @@ Item {
     }
 
     function claimOutput(slot, detectorIndex) {
-        // Monitor 1 cannot be disabled. Optional slots can be displaced.
-        // If Monitor 1 claims an output used by Monitor 2/3, disable that
-        // optional slot. If Monitor 2/3 claims Monitor 1's output, swap the
-        // previous Monitor 1 output into the requesting slot when possible.
-        if (detectorIndex < 0) {
-            if (slot === 2)
-                slot2Index = -1
-            else if (slot === 3)
-                slot3Index = -1
-            return
+        const assignments = [slot1Index, slot2Index, slot3Index]
+
+        if (detectorIndex === assignments[slot - 1])
+            return false
+        if (detectorIndex < -1 || detectorIndex >= monitors.length)
+            return false
+        if (slot === 1 && detectorIndex < 0)
+            return false
+
+        // An output belongs to only one slot. Reject duplicate selections.
+        if (detectorIndex >= 0) {
+            for (let i = 0; i < assignments.length; ++i) {
+                if (i !== slot - 1 && assignments[i] === detectorIndex) {
+                    saveStatus = "That output is already assigned to another monitor slot."
+                    return false
+                }
+            }
         }
 
-        const old1 = slot1Index
-        const old2 = slot2Index
-        const old3 = slot3Index
-
-        if (slot === 1) {
+        if (slot === 1)
             slot1Index = detectorIndex
-            if (old2 === detectorIndex)
-                slot2Index = old1 !== detectorIndex ? old1 : -1
-            if (old3 === detectorIndex)
-                slot3Index = old1 !== detectorIndex && old1 !== slot2Index ? old1 : -1
-        } else if (slot === 2) {
+        else if (slot === 2)
             slot2Index = detectorIndex
-            if (old1 === detectorIndex)
-                slot1Index = old2 >= 0 && old2 !== detectorIndex ? old2 : old1
-            if (old3 === detectorIndex)
-                slot3Index = -1
-        } else if (slot === 3) {
+        else if (slot === 3)
             slot3Index = detectorIndex
-            if (old1 === detectorIndex)
-                slot1Index = old3 >= 0 && old3 !== detectorIndex ? old3 : old1
-            if (old2 === detectorIndex)
-                slot2Index = -1
-        }
+
+        saveStatus = ""
+        return true
     }
 
     function assignmentValid() {
@@ -373,6 +366,7 @@ Item {
         property int assignedIndex: -1
         property bool allowDisabled: true
         property bool syncing: false
+        signal outputSelected(int detectorIndex)
 
         implicitWidth: 260
         implicitHeight: 36
@@ -424,15 +418,18 @@ Item {
         onModelChanged: Qt.callLater(syncCurrentIndex)
 
         onActivated: function(i) {
-            if (!syncing && i >= 0 && i < availableEntries.length)
-                assignedIndex = availableEntries[i].detectorIndex
+            if (!syncing && i >= 0 && i < availableEntries.length) {
+                outputSelected(availableEntries[i].detectorIndex)
+                Qt.callLater(syncCurrentIndex)
+            }
         }
     }
 
     component SetupCard: Rectangle {
+        id: setupCard
         required property int slot
         required property int assignedIndex
-        property alias assignment: assignBox.assignedIndex
+        signal outputSelected(int detectorIndex)
         property alias widthValue: widthBox.numberValue
         property alias heightValue: heightBox.numberValue
         property alias xValue: xBox.numberValue
@@ -462,8 +459,11 @@ Item {
                 Item { Layout.fillWidth: true }
                 AssignmentBox {
                     id: assignBox
-                    allowDisabled: slot !== 1
-                    assignedIndex: parent.parent.parent.assignedIndex
+                    allowDisabled: setupCard.slot !== 1
+                    assignedIndex: setupCard.assignedIndex
+                    onOutputSelected: function(detectorIndex) {
+                        setupCard.outputSelected(detectorIndex)
+                    }
                 }
             }
 
@@ -516,109 +516,6 @@ Item {
                 HunuNumberInput { id: yBox }
                 Label { text: "cm"; color: Theme.subtext }
             }
-        }
-    }
-
-
-    // Kept at the window component level because Quickshell 0.3.1 does not
-    // support declaring an inline component inside another inline component.
-    component PreviewScreenRect: Rectangle {
-        required property int slot
-        required property bool active
-        required property real cmX
-        required property real cmY
-        required property real cmW
-        required property real cmH
-        required property string outputName
-        required property real layoutMinX
-        required property real layoutMinY
-        required property real layoutScale
-
-        visible: active
-        x: 25 + (cmX - layoutMinX) * layoutScale
-        y: 25 + (cmY - layoutMinY) * layoutScale
-        width: Math.max(2, cmW * layoutScale)
-        height: Math.max(2, cmH * layoutScale)
-        radius: 5
-        color: Qt.alpha(Theme.text, 0.08)
-        border.width: 2
-        border.color: Theme.subtext
-
-        Column {
-            anchors.centerIn: parent
-            spacing: 2
-
-            Label {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Monitor " + slot
-                color: Theme.text
-                font.bold: true
-            }
-
-            Label {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: outputName
-                color: Theme.subtext
-                font.pixelSize: 11
-            }
-        }
-    }
-
-    // Physical preview normalizes arbitrary positive/negative positions.
-    component LayoutPreview: Rectangle {
-        id: preview
-        Layout.fillWidth: true
-        implicitHeight: 235
-        radius: 12
-        color: Theme.surface
-        border.width: 1
-        border.color: Qt.alpha(Theme.subtext, 0.22)
-
-        property real minX: Math.min(root.slot1Xcm,
-            root.slot2Index >= 0 ? root.slot2Xcm : root.slot1Xcm,
-            root.slot3Index >= 0 ? root.slot3Xcm : root.slot1Xcm)
-        property real minY: Math.min(root.slot1Ycm,
-            root.slot2Index >= 0 ? root.slot2Ycm : root.slot1Ycm,
-            root.slot3Index >= 0 ? root.slot3Ycm : root.slot1Ycm)
-        property real maxX: Math.max(root.slot1Xcm + root.slot1WidthCm,
-            root.slot2Index >= 0 ? root.slot2Xcm + root.slot2WidthCm : root.slot1Xcm + root.slot1WidthCm,
-            root.slot3Index >= 0 ? root.slot3Xcm + root.slot3WidthCm : root.slot1Xcm + root.slot1WidthCm)
-        property real maxY: Math.max(root.slot1Ycm + root.slot1HeightCm,
-            root.slot2Index >= 0 ? root.slot2Ycm + root.slot2HeightCm : root.slot1Ycm + root.slot1HeightCm,
-            root.slot3Index >= 0 ? root.slot3Ycm + root.slot3HeightCm : root.slot1Ycm + root.slot1HeightCm)
-        property real spanW: Math.max(1, maxX - minX)
-        property real spanH: Math.max(1, maxY - minY)
-        property real scaleFactor: Math.min((width - 50) / spanW, (height - 50) / spanH)
-
-        PreviewScreenRect {
-            slot: 1
-            active: root.slot1Index >= 0
-            layoutMinX: preview.minX
-            layoutMinY: preview.minY
-            layoutScale: preview.scaleFactor
-            cmX: root.slot1Xcm; cmY: root.slot1Ycm
-            cmW: root.slot1WidthCm; cmH: root.slot1HeightCm
-            outputName: root.monitorAt(root.slot1Index) ? root.monitorAt(root.slot1Index).name : ""
-        }
-        PreviewScreenRect {
-            slot: 2
-            active: root.slot2Index >= 0
-            layoutMinX: preview.minX
-            layoutMinY: preview.minY
-            layoutScale: preview.scaleFactor
-            cmX: root.slot2Xcm; cmY: root.slot2Ycm
-            cmW: root.slot2WidthCm; cmH: root.slot2HeightCm
-            outputName: root.monitorAt(root.slot2Index) ? root.monitorAt(root.slot2Index).name : ""
-        }
-        PreviewScreenRect {
-            slot: 3
-            active: root.slot3Index >= 0
-            layoutMinX: preview.minX
-            layoutMinY: preview.minY
-            layoutScale: preview.scaleFactor
-            cmX: root.slot3Xcm; cmY: root.slot3Ycm
-            cmW: root.slot3WidthCm; cmH: root.slot3HeightCm
-            outputName: root.monitorAt(root.slot3Index) ? root.monitorAt(root.slot3Index).name : ""
         }
     }
 
@@ -758,9 +655,9 @@ Item {
                             xValue: root.slot1Xcm
                             yValue: root.slot1Ycm
 
-                            assignment: root.slot1Index
-                            onAssignmentChanged: {
-                                root.claimOutput(1, assignment)
+                            onOutputSelected: function(detectorIndex) {
+                                if (!root.claimOutput(1, detectorIndex))
+                                    return
                                 const m = root.monitorAt(root.slot1Index)
                                 if (m) {
                                     root.slot1WidthCm = m.suggestedWidth
@@ -782,9 +679,9 @@ Item {
                             xValue: root.slot2Xcm
                             yValue: root.slot2Ycm
 
-                            assignment: root.slot2Index
-                            onAssignmentChanged: {
-                                root.claimOutput(2, assignment)
+                            onOutputSelected: function(detectorIndex) {
+                                if (!root.claimOutput(2, detectorIndex))
+                                    return
                                 const m = root.monitorAt(root.slot2Index)
                                 if (m) {
                                     root.slot2WidthCm = m.suggestedWidth
@@ -806,9 +703,9 @@ Item {
                             xValue: root.slot3Xcm
                             yValue: root.slot3Ycm
 
-                            assignment: root.slot3Index
-                            onAssignmentChanged: {
-                                root.claimOutput(3, assignment)
+                            onOutputSelected: function(detectorIndex) {
+                                if (!root.claimOutput(3, detectorIndex))
+                                    return
                                 const m = root.monitorAt(root.slot3Index)
                                 if (m) {
                                     root.slot3WidthCm = m.suggestedWidth
@@ -838,7 +735,9 @@ Item {
                             }
                         }
 
-                        LayoutPreview {}
+                        SetupLayoutPreview {
+                            setup: root
+                        }
                     }
                 }
 
@@ -862,7 +761,11 @@ Item {
                     Layout.fillWidth: true
                     HunuButton {
                         label: "Back"
-                        onClicked: root.page = 0
+                        onClicked: {
+                            if (root.allowCancel)
+                                root.loadSavedSetup()
+                            root.page = 0
+                        }
                     }
                     HunuButton {
                         visible: root.allowCancel

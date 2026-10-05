@@ -11,3 +11,4 @@ WorkspacePreview 1.0 WorkspacePreview.qml
 ImageQualityPanel 1.0 ImageQualityPanel.qml
 WorkspaceResults 1.0 WorkspaceResults.qml
 HunuNumberInput 1.0 HunuNumberInput.qml
+SetupLayoutPreview 1.0 SetupLayoutPreview.qml
