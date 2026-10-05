@@ -136,6 +136,16 @@ This is useful when a landscape should appear to continue naturally from one
 display to another even when the monitors have different sizes, orientations,
 resolutions, or vertical offsets.
 
+**Move together** is enabled by default. Changing any monitor's X or Y offset
+moves the shared composition across all enabled monitors. Sliders and exact
+integer inputs use the movement range valid for every enabled monitor.
+
+Uncheck **Move together** to adjust individual crops. Independent adjustments
+can break seam alignment. Re-enabling it synchronizes the monitors to the first
+enabled monitor's offsets, limited to the shared valid range.
+
+Maximum Quality mode always keeps monitor positioning independent.
+
 ### Maximum Quality
 
 Maximum Quality creates an independent crop from the original source image for
