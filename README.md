@@ -38,6 +38,10 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Generation settings captured at job start, with controls locked while processing
 - Reusable AI cache with per-entry locking
 - Concurrent generation protected by an output-directory lock
+- AI cache size and image count with a Clear AI Cache control
+- Live generation stages and available AI upscaling percentages
+- Cancel generation with cleanup of unfinished files and child processes
+- Scrollable workspace with Generate and Apply kept visible
 
 ## Requirements
 
@@ -47,6 +51,7 @@ Required:
 - Quickshell
 - ImageMagick (`magick`)
 - Bash
+- Python 3 (`python3`)
 - `awk`
 - `jq`
 - `flock`
@@ -164,13 +169,35 @@ requests for the same cache entry wait for its creation.
 
 The default cache location is
 `${XDG_CACHE_HOME:-$HOME/.cache}/hunu-wallpaper/`. Alternate installations use
-their own application-name namespace. Cached files remain until removed or
-until Hunu is uninstalled.
+their own application-name namespace. Use **Clear AI Cache** to remove reusable
+AI images, or uninstall Hunu to remove its cache.
 
 The helper rejects an output that refers to its source file, including through
 symlinks or hard links. Results are written to temporary files and replace the
 destination only after successful completion. Failed upscaling preserves any
 existing destination. AI failures display diagnostic details in the workspace.
+
+## Cache management, progress, and cancellation
+
+Hunu shows the total size and number of reusable AI images. **Clear AI Cache**
+removes those cached images while preserving generated wallpapers. Cache
+clearing is disabled during processing and refuses to run while another Hunu
+generation job holds the cache lock. Small coordination lock files are retained
+so running instances continue to synchronize correctly.
+
+Generation displays the current stage. When Real-ESRGAN reports a percentage,
+Hunu displays it for the upscaling stage. Wallpaper rendering progress reflects
+completed monitor crops; stages without measurable progress use an
+indeterminate indicator. Percentages describe the current stage rather than
+an estimated percentage of the entire job.
+
+**Cancel** stops the active generation helper and its child processes. Unfinished
+working files and incomplete new output sets are cleaned up. Previously
+completed wallpapers remain available on disk. A successfully completed AI
+cache image may remain reusable if cancellation happens during later rendering.
+
+The upper workspace scrolls when needed, while Generate, Apply, and the results
+area remain visible at the bottom.
 
 ## Generate and Apply
 
@@ -192,9 +219,9 @@ into the X/Y fields. Press Enter or leave the field to apply the value.
 Values are limited to the valid crop range. **Center / Reset** returns all
 offsets to zero.
 
-Controls are locked while generating or applying wallpapers. Generation jobs
-targeting the same output directory run sequentially to prevent output-set
-collisions.
+Configuration controls are locked while generating or applying wallpapers.
+**Cancel** remains available during generation. Generation jobs targeting the
+same output directory run sequentially to prevent output-set collisions.
 
 Choose **Serpantinum**, **hyprpaper**, or **awww** from **Apply using**.
 The selection is remembered across launches and monitor-setup saves.
@@ -270,13 +297,16 @@ packaging/
 src/
   apply-serpantinum.sh
   apply-wallpapers.sh
+  cache-path.sh
   check-apply-backend.sh
   check-monitor-config.sh
   check-upscaler.sh
   detect-monitors.sh
   detect-theme.sh
   load-monitor-config.sh
+  manage-cache.sh
   qmldir
+  run-generation.py
   save-apply-backend.sh
   save-monitor-config.sh
   save-output-dir.sh
