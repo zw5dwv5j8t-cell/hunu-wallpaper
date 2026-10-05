@@ -27,7 +27,7 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Wallpaper positioning controls with editable integer fields for exact offsets
 - Source-resolution quality analysis with an upscale recommendation
 - Optional Real-ESRGAN AI upscaling at 2×, 3×, or 4×
-- Sequential output sets using `_a`, `_b`, and `_c`
+- Readable output sets named from the original image, timestamp, and monitor slot
 - Saved monitor setup with first-run configuration
 - Optional Apply through Serpantinum, hyprpaper, or awww
 - Saved Apply backend selection with live IPC readiness checks
@@ -250,6 +250,21 @@ five seconds. The workspace shows its readiness status. Apply is enabled when
 a generated set is available and the backend is responding. Each wallpaper is
 sent to its assigned monitor output. Switching backends keeps the generated
 files available for Apply.
+
+Output filenames use the original image name, a local timestamp, and the monitor
+slot suffix `_a`, `_b`, or `_c`. For example:
+
+```text
+Mountain-Lake_20261005-140248_a.png
+Mountain-Lake_20261005-140248_b.png
+```
+
+Spaces and unsupported filename characters become hyphens. The source-name
+portion is limited to 100 characters, with `wallpaper` used if it becomes empty.
+Same-second naming collisions receive an additional `-02`, `-03`, etc.
+AI-generated sets retain the original image name. Existing numbered files are
+left untouched.
+
 
 Hunu does not start or stop wallpaper services. Configure your preferred
 backend to start with your desktop session, and use one wallpaper renderer
