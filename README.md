@@ -29,6 +29,9 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Optional Real-ESRGAN AI upscaling at 2×, 3×, or 4×
 - Readable output sets named from the original image, timestamp, and monitor slot
 - Saved monitor setup with first-run configuration
+- Settings dialog with General, AI Cache, and About pages
+- About shows app version, theme provider, and required-command availability
+- Monitor setup rejects duplicate output assignments and discards unsaved edits
 - Optional Apply through Serpantinum, hyprpaper, or awww
 - Saved Apply backend selection with live IPC readiness checks
 - Optional Serpantinum/Matugen colors with a built-in fallback theme
@@ -71,6 +74,13 @@ Apply requires the selected backend to be running and responding to IPC.
 Wallpaper generation works without any Apply backend.
 
 The installer checks dependencies but does not install system packages.
+The About page also checks whether required commands are available.
+
+For native choosers with a places sidebar, a working XDG desktop portal and
+a FileChooser backend (such as `xdg-desktop-portal-gtk` or
+`xdg-desktop-portal-kde`) are recommended. The generated desktop launcher
+requests Qt’s portal integration for Hunu only; chooser appearance depends on
+the configured desktop portal backend.
 
 ## Install
 
@@ -95,7 +105,7 @@ An existing installed configuration is backed up before installation. A saved
 For development or parallel installations, set `HUNU_APP_NAME`:
 
 ```bash
-HUNU_APP_NAME=hunu-wallpaper-test ./install.sh
+env HUNU_APP_NAME=hunu-wallpaper-test ./install.sh
 ```
 
 The application, launcher, icon, and backup paths use that name, keeping the
@@ -117,12 +127,33 @@ For each monitor you want to use:
 Physical measurements should include the monitor bezels if you want the linked
 composition to account for the real gap occupied by those bezels.
 
-Monitor 1 is required. Monitors 2 and 3 are optional.
+Monitor 1 is required. Monitors 2 and 3 are optional. Each enabled slot must
+use a different detected output; selecting an already assigned output is
+rejected. Disable its existing optional slot before moving that output to
+another slot.
 
 After saving, the setup is reused automatically on later launches. Monitor
-Setup remains available if the physical arrangement changes.
+Setup remains available through **Settings → General → Monitor Setup** if the
+physical arrangement changes. For an existing saved setup, **Back** from
+calibration restores saved measurements, and **Cancel** returns to the workspace
+without saving edits. First-run setup must be completed before using the
+workspace.
 
 ![Hunu Wallpaper Splitter monitor setup](assets/screenshots/monitor-setup.png)
+
+## Settings and About
+
+Open **Settings** from the workspace header:
+
+- **General:** choose the wallpaper output folder, select the Apply backend,
+  view backend readiness, or open Monitor Setup.
+- **AI Cache:** view reusable AI image count and size, or clear cached images.
+- **About:** view the app version, theme provider, optional AI availability,
+  required-command checks, license, and repository link.
+
+Composition controls remain in the workspace: Choose Wallpaper, wallpaper
+mode, Move together, AI scale, and position offsets. Generate, Cancel, Apply,
+and results remain in the fixed bottom panel.
 
 ## Wallpaper modes
 
@@ -179,7 +210,7 @@ requests for the same cache entry wait for its creation.
 
 The default cache location is
 `${XDG_CACHE_HOME:-$HOME/.cache}/hunu-wallpaper/`. Alternate installations use
-their own application-name namespace. Use **Clear AI Cache** to remove reusable
+their own application-name namespace. Use **Settings → AI Cache → Clear AI Cache** to remove reusable
 AI images, or uninstall Hunu to remove its cache.
 
 The helper rejects an output that refers to its source file, including through
@@ -189,7 +220,8 @@ existing destination. AI failures display diagnostic details in the workspace.
 
 ## Cache management, progress, and cancellation
 
-Hunu shows the total size and number of reusable AI images. **Clear AI Cache**
+**Settings → AI Cache** shows the total size and number of reusable AI images.
+**Clear AI Cache**
 removes those cached images while preserving generated wallpapers. Cache
 clearing is disabled during processing and refuses to run while another Hunu
 generation job holds the cache lock. Small coordination lock files are retained
@@ -213,18 +245,14 @@ area remain visible at the bottom.
 
 **Generate** creates the wallpaper files without changing the desktop.
 
-Generated wallpapers are written to:
+Generated wallpapers are written to `~/Pictures/Wallpapers` by default.
+Use **Settings → General → Choose Folder** to select another existing, writable
+directory. The **Save to** path remains visible in the workspace. The selection
+is remembered across launches and preserved when saving monitor calibration.
+Previously generated wallpapers are left in their original locations.
 
-```text
-~/Pictures/Wallpapers
-```
 **Choose Wallpaper** remembers the folder of the last selected image across
 launches and reinstalls. Each installation keeps its own folder preference.
-
-by default. Use **Choose Folder** beside **Save to** to select another existing,
-writable directory. The selection is remembered across launches and preserved
-when saving monitor calibration. Previously generated wallpapers are left
-in their original locations.
 
 Use the sliders for broad positioning adjustments, or type an exact integer
 into the X/Y fields. Press Enter or leave the field to apply the value.
@@ -235,7 +263,8 @@ Configuration controls are locked while generating or applying wallpapers.
 **Cancel** remains available during generation. Generation jobs targeting the
 same output directory run sequentially to prevent output-set collisions.
 
-Choose **Serpantinum**, **hyprpaper**, or **awww** from **Apply using**.
+Choose **Serpantinum**, **hyprpaper**, or **awww** from **Apply using** in
+**Settings → General**.
 The selection is remembered across launches and monitor-setup saves.
 Existing configurations without a saved backend default to Serpantinum.
 
@@ -265,7 +294,6 @@ Same-second naming collisions receive an additional `-02`, `-03`, etc.
 AI-generated sets retain the original image name. Existing numbered files are
 left untouched.
 
-
 Hunu does not start or stop wallpaper services. Configure your preferred
 backend to start with your desktop session, and use one wallpaper renderer
 at a time. For hyprpaper, use a valid startup configuration with a wallpaper
@@ -288,7 +316,7 @@ for use with another wallpaper manager.
 With the default installation:
 
 ```bash
-quickshell -p ~/.config/hunu-wallpaper
+env QT_QPA_PLATFORMTHEME=xdgdesktopportal quickshell -p ~/.config/hunu-wallpaper
 ```
 
 If `XDG_CONFIG_HOME` or `HUNU_APP_NAME` was customized, use the corresponding
@@ -305,7 +333,7 @@ From the repository:
 For an alternate installation name:
 
 ```bash
-HUNU_APP_NAME=hunu-wallpaper-test ./uninstall.sh
+env HUNU_APP_NAME=hunu-wallpaper-test ./uninstall.sh
 ```
 
 The uninstaller removes the installed application, launcher, icon, and Hunu
@@ -326,6 +354,7 @@ src/
   apply-wallpapers.sh
   cache-path.sh
   check-apply-backend.sh
+  check-dependencies.sh
   check-monitor-config.sh
   check-upscaler.sh
   detect-monitors.sh
@@ -337,11 +366,22 @@ src/
   save-apply-backend.sh
   save-monitor-config.sh
   save-output-dir.sh
+  AppInfo.qml
+  HunuMonitorPreview.qml
+  HunuNumberInput.qml
+  HunuOffsetCard.qml
+  HunuOffsetInput.qml
+  HunuRadioButton.qml
+  ImageQualityPanel.qml
+  SettingsView.qml
+  SetupLayoutPreview.qml
   SetupView.qml
   shell.qml
   split-wallpaper.sh
   upscale-image.sh
   Theme.qml
+  WorkspacePreview.qml
+  WorkspaceResults.qml
   WorkspaceView.qml
 install.sh
 uninstall.sh
@@ -353,6 +393,13 @@ LICENSE
 `config/config.conf` is a local development configuration and is intentionally
 ignored by Git. Public users create their own monitor configuration through the
 first-run setup.
+
+UI components are separated by purpose. `WorkspaceView.qml` retains job state
+and process coordination; preview, positioning, image-quality, results, and
+settings components receive explicit references to that state. `SetupView.qml`
+retains monitor assignment and calibration logic, with separate measurement
+input and physical-preview components. Shared app metadata lives in
+`AppInfo.qml`.
 
 ## Notes
 
