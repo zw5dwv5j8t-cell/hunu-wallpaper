@@ -977,137 +977,13 @@ Item {
         } // workspaceContent
     } // workspaceScroll
 
-    Rectangle {
+    WorkspaceResults {
         id: workspaceResults
+        workspace: root
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.margins: 22
         height: 118
-            radius: 10
-            color: Theme.surface
-            clip: true
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 14
-                spacing: 14
-
-                Flickable {
-                    id: resultScroll
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    contentWidth: width
-                    contentHeight: resultContent.implicitHeight
-                    boundsBehavior: Flickable.StopAtBounds
-                    flickableDirection: Flickable.VerticalFlick
-
-                    ScrollBar.vertical: ScrollBar {
-                        policy: ScrollBar.AsNeeded
-                    }
-
-                    Column {
-                        id: resultContent
-                        width: resultScroll.width - 12
-                        spacing: 3
-                        ProgressBar {
-                            width: parent.width
-                            visible: root.generating
-                            from: 0
-                            to: 100
-                            value: Math.max(0, root.jobProgress)
-                            indeterminate: root.jobProgress < 0
-                        }
-
-                        Label {
-                            width: parent.width
-                            visible: root.generating && root.jobProgress >= 0
-                            text: Math.round(root.jobProgress) + "%"
-                            color: Theme.subtext
-                            font.pixelSize: 12
-                        }
-                        Label {
-                            width: parent.width
-                            text: root.backendStatus
-                            color: root.backendReady ? Theme.success : Theme.subtext
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
-                        }
-
-                        Label {
-                            width: parent.width
-                            text: root.generatedPair !== ""
-                                ? root.statusMessage + "  ·  Set " + root.generatedPair
-                                : root.statusMessage
-                            color: Theme.success
-                            font.bold: true
-                            elide: Text.ElideRight
-                        }
-
-                        Repeater {
-                            model: root.activeSlots.length
-                            delegate: Label {
-                                required property int index
-                                property int slot: root.activeSlots[index]
-                                width: resultContent.width
-                                visible: root.generatedFile[slot] !== ""
-                                text: "Monitor " + slot + " · " + root.outputName[slot]
-                                    + " · " + root.generatedFile[slot].split("/").pop()
-                                color: Theme.subtext
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        Label {
-                            visible: root.processError !== ""
-                            width: parent.width
-                            text: root.processError
-                            color: Theme.muted
-                            wrapMode: Text.Wrap
-                        }
-                    }
-                }
-
-                Button {
-                    Layout.preferredWidth: 96
-                    Layout.minimumWidth: 96
-                    Layout.maximumWidth: 96
-                    visible: root.generating
-                    text: root.cancelRequested ? "Cancelling…" : "Cancel"
-                    enabled: root.generating && !root.cancelRequested
-                    onClicked: root.cancelGeneration()
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Stop generation and clean up unfinished files."
-                }
-
-                Button {
-                    Layout.preferredWidth: 112
-                    Layout.minimumWidth: 112
-                    Layout.maximumWidth: 112
-                    text: root.generating
-                        ? root.jobPhase === "upscale"
-                            ? "Upscaling…" : "Generating…"
-                        : "Generate"
-                    enabled: root.sourcePath !== "" && !root.busy
-                    onClicked: root.generate()
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Create one correctly sized wallpaper file for every enabled monitor."
-                }
-
-                Button {
-                    Layout.preferredWidth: 96
-                    Layout.minimumWidth: 96
-                    Layout.maximumWidth: 96
-                    text: root.applying ? "Applying…" : "Apply"
-                    enabled: root.generatedReady()
-                        && root.backendReady
-                        && !root.busy
-                    onClicked: root.applyGenerated()
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Apply generated wallpapers through the selected backend."
-                 }
-            }
-
     }
 }

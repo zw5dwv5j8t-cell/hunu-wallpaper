@@ -118,6 +118,7 @@ required_files=(
     "src/check-dependencies.sh"
     "src/WorkspacePreview.qml"
     "src/ImageQualityPanel.qml"
+    "src/WorkspaceResults.qml"
 )
 
 for file in "${required_files[@]}"; do
@@ -202,6 +203,7 @@ app_files=(
     "check-dependencies.sh"
     "WorkspacePreview.qml"
     "ImageQualityPanel.qml"
+    "WorkspaceResults.qml"
 
 )
 
