@@ -63,7 +63,7 @@ printf '============================================\n\n'
 
 missing=()
 
-for cmd in hyprctl quickshell magick jq bash awk flock sha256sum timeout; do
+for cmd in hyprctl quickshell magick jq bash awk flock sha256sum timeout python3; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         missing+=("$cmd")
     fi
@@ -108,6 +108,7 @@ required_files=(
     "assets/hunu-wallpaper.png"
     "src/cache-path.sh"
     "src/manage-cache.sh"
+    "src/run-generation.py"
 )
 
 for file in "${required_files[@]}"; do
@@ -182,6 +183,7 @@ app_files=(
     "apply-wallpapers.sh"
     "cache-path.sh"
     "manage-cache.sh"
+    "run-generation.py"
 
 )
 

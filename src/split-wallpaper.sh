@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Run EXIT cleanup when the generation controller cancels this helper.
+trap 'exit 130' TERM INT
 
 # ============================================================
 # Hunu Wallpaper Splitter - public backend
@@ -570,6 +572,36 @@ if [[ "$PROBE" == true ]]; then
     exit 0
 fi
 
+# Render into a private directory before publishing the output set.
+WORK_DIR="$(mktemp -d "$OUTPUT_DIR/.hunu-generation.XXXXXX")"
+declare -a FINAL_OUTPUT_FILE
+
+for i in "${ACTIVE[@]}"; do
+    FINAL_OUTPUT_FILE[$i]="${OUTPUT_FILE[$i]}"
+    OUTPUT_FILE[$i]="$WORK_DIR/${PREFIX}_${OUTPUT_SUFFIX[$i]}.png"
+done
+
+PUBLISHING=false
+PUBLISHED=false
+
+cleanup_generation() {
+    if [[ "$PUBLISHING" == true && "$PUBLISHED" == false ]]; then
+        for slot in "${ACTIVE[@]}"; do
+            rm -f -- "${FINAL_OUTPUT_FILE[$slot]}"
+        done
+    fi
+    rm -rf -- "$WORK_DIR"
+}
+
+trap cleanup_generation EXIT
+
+COMPLETED_MONITORS=0
+
+monitor_finished() {
+    COMPLETED_MONITORS=$((COMPLETED_MONITORS + 1))
+    printf 'JOB_PROGRESS=%s\n' "$((COMPLETED_MONITORS * 100 / MONITOR_COUNT))"
+}
+
 # ------------------------------------------------------------
 # Linked mode
 # ------------------------------------------------------------
@@ -582,9 +614,9 @@ linked_mode() {
     base_x=$(( (scaled_w - DESKTOP_W) / 2 ))
     base_y=$(( (scaled_h - DESKTOP_H) / 2 ))
 
-    tmp="$OUTPUT_DIR/.hunu-linked-working-$$.png"
-    trap 'rm -f -- "$tmp"' EXIT
+    tmp="$WORK_DIR/linked-working.png"
 
+    printf 'JOB_STAGE=Preparing linked canvas…\nJOB_PROGRESS=-1\n'
     magick "$SOURCE" -resize "${scaled_w}x${scaled_h}!" "$tmp"
 
     for i in "${ACTIVE[@]}"; do
@@ -600,15 +632,18 @@ linked_mode() {
         crop_x=$(( base_x + PHYS_X[$i] + dx ))
         crop_y=$(( base_y + PHYS_Y[$i] + dy ))
 
+        printf 'JOB_STAGE=Rendering monitor %s of %s…\n' \
+            "$((COMPLETED_MONITORS + 1))" "$MONITOR_COUNT"
+
         magick "$tmp" \
             -crop "${PHYS_W[$i]}x${PHYS_H[$i]}+${crop_x}+${crop_y}" \
             +repage \
             -resize "${PIXEL_W[$i]}x${PIXEL_H[$i]}!" \
             "${OUTPUT_FILE[$i]}"
+        monitor_finished
     done
 
     rm -f -- "$tmp"
-    trap - EXIT
 }
 
 # ------------------------------------------------------------
@@ -646,8 +681,12 @@ quality_monitor() {
 }
 
 quality_mode() {
+    printf 'JOB_PROGRESS=0\n'
     for i in "${ACTIVE[@]}"; do
+        printf 'JOB_STAGE=Rendering monitor %s of %s…\n' \
+            "$((COMPLETED_MONITORS + 1))" "$MONITOR_COUNT"
         quality_monitor "$i"
+        monitor_finished
     done
 }
 
@@ -655,6 +694,21 @@ case "$MODE" in
     linked) linked_mode ;;
     quality) quality_mode ;;
 esac
+
+# Check every destination before publishing; preserve existing files.
+for i in "${ACTIVE[@]}"; do
+    [[ ! -e "${FINAL_OUTPUT_FILE[$i]}" &&
+       ! -L "${FINAL_OUTPUT_FILE[$i]}" ]] ||
+        die "Output destination already exists: ${FINAL_OUTPUT_FILE[$i]}"
+done
+
+printf 'JOB_STAGE=Saving completed wallpapers…\nJOB_PROGRESS=-1\n'
+PUBLISHING=true
+for i in "${ACTIVE[@]}"; do
+    mv -T -- "${OUTPUT_FILE[$i]}" "${FINAL_OUTPUT_FILE[$i]}"
+    OUTPUT_FILE[$i]="${FINAL_OUTPUT_FILE[$i]}"
+done
+PUBLISHED=true
 
 # ------------------------------------------------------------
 # Machine-readable result

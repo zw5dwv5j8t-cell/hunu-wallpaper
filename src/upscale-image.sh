@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Run EXIT cleanup when the generation controller cancels this helper.
+trap 'exit 130' TERM INT
 
 INPUT=""
 OUTPUT=""

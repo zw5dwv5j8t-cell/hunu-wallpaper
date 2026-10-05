@@ -69,8 +69,13 @@ Item {
     property string statusMessage: "Choose a wallpaper."
 
     property bool applying: false
-    readonly property bool busy: upscaleProcess.running || splitterProcess.running || applying || outputSaveProcess.running || backendSaveProcess.running || (cacheProcess.running && cacheProcess.action === "clear")
+    readonly property bool busy: generating || applying || outputSaveProcess.running || backendSaveProcess.running || (cacheProcess.running && cacheProcess.action === "clear")
     property var pendingSplitCommand: []
+
+    readonly property bool generating: generationProcess.running
+    property bool cancelRequested: false
+    property string jobPhase: ""
+    property real jobProgress: -1
 
     signal monitorSetupRequested()
 
@@ -263,46 +268,54 @@ Item {
     }
 
     function generate() {
+        if (busy)
+            return
         if (sourcePath === "") {
             statusMessage = "Choose a wallpaper first."
+            return
+        }
+        if (upscaleScale !== 1 && !upscalerAvailable) {
+            statusMessage = "Real-ESRGAN is not available."
             return
         }
 
         invalidateGenerated()
         upscaledSourcePath = ""
+        cancelRequested = false
+        jobPhase = ""
+        jobProgress = -1
+        statusMessage = "Starting generation…"
+
         pendingSplitCommand = commandForSource(
             sourcePath, false, mode === "quality" ? upscaleScale : 1)
 
-        if (upscaleScale === 1) {
-            statusMessage = "Generating wallpapers…"
-            splitterProcess.command = commandBase(false)
-            splitterProcess.running = true
-            return
-        }
-
-        if (!upscalerAvailable) {
-            statusMessage = "Real-ESRGAN is not available."
-            return
-        }
-
-        statusMessage = "AI upscaling source " + upscaleScale + "×…"
-        upscaleProcess.command = [
-            scriptPath("upscale-image.sh"),
-            "--input", sourcePath,
-            "--scale", String(upscaleScale)
-        ]
-        upscaleProcess.running = true
+        generationProcess.command = [
+            "python3", scriptPath("run-generation.py"),
+            "--scale", String(upscaleScale), "--"
+        ].concat(pendingSplitCommand)
+        generationProcess.running = true
     }
 
-    function parseUpscaleResult(text) {
-        for (let line of text.trim().split("\n")) {
-            const p = line.indexOf("=")
-            if (p < 0)
-                continue
-            const key = line.substring(0, p).trim()
-            const value = line.substring(p + 1).trim()
-            if (key === "UPSCALE_OUTPUT")
-                upscaledSourcePath = value
+    function cancelGeneration() {
+        if (!generating || cancelRequested)
+            return
+        cancelRequested = true
+        statusMessage = "Cancelling — cleaning up…"
+        generationProcess.signal(15)
+    }
+
+    function readGenerationLine(line) {
+        if (line.startsWith("JOB_PHASE=")) {
+            jobPhase = line.substring(10)
+        } else if (line.startsWith("JOB_STAGE=")) {
+            if (!cancelRequested)
+                statusMessage = line.substring(10)
+        } else if (line.startsWith("JOB_PROGRESS=")) {
+            jobProgress = Number(line.substring(13))
+        } else if (line.startsWith("UPSCALE_OUTPUT=")) {
+            upscaledSourcePath = line.substring(15)
+        } else {
+            generationProcess.resultText += line + "\n"
         }
     }
 
@@ -523,18 +536,48 @@ Item {
     }
 
     Process {
-        id: splitterProcess
-        stdout: StdioCollector { onStreamFinished: root.parseResult(text) }
-        stderr: StdioCollector {
-            onStreamFinished: if (text.trim() !== "") root.processError = text.trim()
+        id: generationProcess
+        property string resultText: ""
+        property string errorText: ""
+
+        onRunningChanged: {
+            if (running) {
+                resultText = ""
+                errorText = ""
+            }
         }
+
+        stdout: SplitParser {
+            onRead: data => root.readGenerationLine(data)
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: {
+                generationProcess.errorText = text.trim()
+                    .split("\n").slice(-20).join("\n")
+            }
+        }
+
         onExited: function(exitCode) {
-            if (exitCode !== 0)
+            if (exitCode === 130) {
+                root.invalidateGenerated()
+                root.statusMessage = "Generation cancelled."
+            } else if (exitCode !== 0) {
+                root.invalidateGenerated()
+                root.processError = errorText !== ""
+                    ? errorText
+                    : "Generation controller exited with code " + exitCode + "."
                 root.statusMessage = "Generation failed."
-            else if (!root.generatedReady())
-                root.statusMessage = "Generation finished, but output paths were not returned."
-            else
-                root.statusMessage = "Wallpapers generated — ready to apply."
+            } else {
+                root.parseResult(resultText)
+                root.statusMessage = root.generatedReady()
+                    ? "Wallpapers generated — ready to apply."
+                    : "Generation finished, but output paths were not returned."
+            }
+
+            root.cancelRequested = false
+            root.jobPhase = ""
+            root.jobProgress = -1
         }
     }
 
@@ -584,45 +627,6 @@ Item {
                 root.processError = ""
                 root.statusMessage = "AI cache cleared."
             }
-        }
-    }
-
-    Process {
-        id: upscaleProcess
-        property string errorText: ""
-
-        onRunningChanged: {
-            if (running)
-                errorText = ""
-        }
-
-        stdout: StdioCollector {
-            onStreamFinished: root.parseUpscaleResult(text)
-        }
-        stderr: StdioCollector {
-            onStreamFinished: {
-                upscaleProcess.errorText = text.trim()
-                    .split("\n").slice(-20).join("\n")
-            }
-        }
-        onExited: function(exitCode) {
-            if (exitCode !== 0) {
-                root.statusMessage = "AI upscaling failed."
-                root.processError = errorText !== ""
-                    ? errorText
-                    : "AI upscale helper exited with code " + exitCode + "."
-                return
-            }
-            if (root.upscaledSourcePath === "") {
-                root.statusMessage = "AI upscaling finished, but no output path was returned."
-                return
-            }
-
-            root.statusMessage = "Upscaling complete — generating wallpapers…"
-            let splitCommand = root.pendingSplitCommand.slice()
-            splitCommand[1] = root.upscaledSourcePath
-            splitterProcess.command = splitCommand
-             splitterProcess.running = true
         }
     }
 
@@ -1281,7 +1285,6 @@ Item {
         anchors.bottom: parent.bottom
         anchors.margins: 22
         height: 118
-        enabled: !root.busy
             radius: 10
             color: Theme.surface
             clip: true
@@ -1309,6 +1312,22 @@ Item {
                         id: resultContent
                         width: resultScroll.width - 12
                         spacing: 3
+                        ProgressBar {
+                            width: parent.width
+                            visible: root.generating
+                            from: 0
+                            to: 100
+                            value: Math.max(0, root.jobProgress)
+                            indeterminate: root.jobProgress < 0
+                        }
+
+                        Label {
+                            width: parent.width
+                            visible: root.generating && root.jobProgress >= 0
+                            text: Math.round(root.jobProgress) + "%"
+                            color: Theme.subtext
+                            font.pixelSize: 12
+                        }
                         Label {
                             width: parent.width
                             text: root.backendStatus
@@ -1352,15 +1371,26 @@ Item {
                 }
 
                 Button {
+                    Layout.preferredWidth: 96
+                    Layout.minimumWidth: 96
+                    Layout.maximumWidth: 96
+                    visible: root.generating
+                    text: root.cancelRequested ? "Cancelling…" : "Cancel"
+                    enabled: root.generating && !root.cancelRequested
+                    onClicked: root.cancelGeneration()
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Stop generation and clean up unfinished files."
+                }
+
+                Button {
                     Layout.preferredWidth: 112
                     Layout.minimumWidth: 112
                     Layout.maximumWidth: 112
-                    text: upscaleProcess.running ? "Upscaling…"
-                        : splitterProcess.running ? "Generating…" : "Generate"
-                    enabled: root.sourcePath !== ""
-                        && !upscaleProcess.running
-                        && !splitterProcess.running
-                        && !root.applying
+                    text: root.generating
+                        ? root.jobPhase === "upscale"
+                            ? "Upscaling…" : "Generating…"
+                        : "Generate"
+                    enabled: root.sourcePath !== "" && !root.busy
                     onClicked: root.generate()
                     ToolTip.visible: hovered
                     ToolTip.text: "Create one correctly sized wallpaper file for every enabled monitor."
@@ -1371,10 +1401,9 @@ Item {
                     Layout.minimumWidth: 96
                     Layout.maximumWidth: 96
                     text: root.applying ? "Applying…" : "Apply"
-                    enabled: root.generatedReady() && root.backendReady
-                        && !upscaleProcess.running
-                        && !splitterProcess.running
-                        && !root.applying
+                    enabled: root.generatedReady()
+                        && root.backendReady
+                        && !root.busy
                     onClicked: root.applyGenerated()
                     ToolTip.visible: hovered
                     ToolTip.text: "Apply generated wallpapers through the selected backend."
