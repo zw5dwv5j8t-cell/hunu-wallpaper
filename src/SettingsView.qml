@@ -11,6 +11,57 @@ Dialog {
     property var dependencyAvailability: ({})
     property string dependencyError: ""
 
+    property string updateStatus: ""
+    property string updateMessage: ""
+    property string updateUrl: ""
+
+    Process {
+        id: updateCheck
+        command: [
+            "python3",
+            Qt.resolvedUrl("check-updates.py")
+                .toString().replace("file://", ""),
+            AppInfo.version
+        ]
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let values = {}
+                for (let line of text.trim().split("\n")) {
+                    const separator = line.indexOf("=")
+                    if (separator > 0)
+                        values[line.substring(0, separator)] =
+                            line.substring(separator + 1)
+                }
+
+                dialog.updateStatus = values.UPDATE_STATUS || "error"
+                dialog.updateUrl = ""
+
+                if (dialog.updateStatus === "available") {
+                    dialog.updateMessage =
+                        "New version available: v" + values.UPDATE_VERSION
+                    dialog.updateUrl = values.UPDATE_URL || ""
+                } else if (dialog.updateStatus === "current") {
+                    dialog.updateMessage = "You are up to date."
+                } else {
+                    dialog.updateMessage = values.UPDATE_MESSAGE
+                        || "Could not check for updates. Try again later."
+                }
+            }
+        }
+
+        stderr: StdioCollector {}
+
+        onExited: function(exitCode) {
+            if (exitCode !== 0) {
+                dialog.updateStatus = "error"
+                dialog.updateUrl = ""
+                dialog.updateMessage =
+                    "Could not check for updates. Try again later."
+            }
+        }
+    }
+
     readonly property var requiredCommands: [
         "hyprctl", "quickshell", "magick", "jq", "bash",
         "awk", "flock", "sha256sum", "timeout", "python3"
@@ -240,6 +291,38 @@ Dialog {
                 Label {
                     text: "Version " + AppInfo.version
                     color: Theme.subtext
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Button {
+                        text: updateCheck.running
+                            ? "Checking…" : "Check for updates"
+                        enabled: !updateCheck.running
+                        onClicked: {
+                            dialog.updateStatus = ""
+                            dialog.updateMessage = ""
+                            dialog.updateUrl = ""
+                            updateCheck.running = true
+                        }
+                    }
+
+                    Button {
+                        visible: dialog.updateStatus === "available"
+                            && dialog.updateUrl !== ""
+                        text: "Open release page"
+                        onClicked: Qt.openUrlExternally(dialog.updateUrl)
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: dialog.updateMessage !== ""
+                    text: dialog.updateMessage
+                    color: dialog.updateStatus === "available"
+                        ? Theme.success : Theme.subtext
+                    wrapMode: Text.WordWrap
                 }
                 Label {
                     Layout.fillWidth: true
