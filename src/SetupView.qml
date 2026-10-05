@@ -13,10 +13,19 @@ Item {
     // The setup view is embedded in the main Hunu window.
     // allowCancel is false during mandatory first-run setup.
     property bool allowCancel: false
+    property bool firstRunGuideShown: false
     property string configPath: ""
     property bool loadingSavedSetup: false
     signal setupSaved()
     signal cancelRequested()
+
+    SetupGuide {
+        id: setupGuide
+    }
+
+    function openGuide() {
+        setupGuide.open()
+    }
 
     property int page: 0
     onPageChanged: {
@@ -560,11 +569,18 @@ Item {
             ColumnLayout {
                 spacing: 14
 
-                Label {
-                    text: "Monitor Setup"
-                    color: Theme.text
-                    font.pixelSize: 25
-                    font.bold: true
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    Label {
+                        text: "Monitor Setup"
+                        color: Theme.text
+                        font.pixelSize: 25
+                        font.bold: true
+                    }
+
+                    Item { Layout.fillWidth: true }
+
                 }
                 Label {
                     text: detector.running ? "Detecting Hyprland displays…"
@@ -642,7 +658,15 @@ Item {
                     HunuButton {
                         label: "Continue"
                         enabled: root.supportedCount > 0 && !detector.running
-                        onClicked: root.page = 1
+                        onClicked: {
+                            root.page = 1
+                            if (!root.allowCancel && !root.firstRunGuideShown) {
+                                root.firstRunGuideShown = true
+                                Qt.callLater(function() {
+                                    root.openGuide()
+                                })
+                            }
+                        }
                     }
                 }
             }
@@ -651,11 +675,22 @@ Item {
             ColumnLayout {
                 spacing: 12
 
-                Label {
-                    text: "Assign & Calibrate"
-                    color: Theme.text
-                    font.pixelSize: 25
-                    font.bold: true
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    Label {
+                        text: "Assign & Calibrate"
+                        color: Theme.text
+                        font.pixelSize: 25
+                        font.bold: true
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Button {
+                        text: "How to measure"
+                        onClicked: root.openGuide()
+                    }
                 }
                 Label {
                     Layout.fillWidth: true
