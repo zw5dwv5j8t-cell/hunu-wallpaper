@@ -218,6 +218,8 @@ Generated wallpapers are written to:
 ```text
 ~/Pictures/Wallpapers
 ```
+**Choose Wallpaper** remembers the folder of the last selected image across
+launches and reinstalls. Each installation keeps its own folder preference.
 
 by default. Use **Choose Folder** beside **Save to** to select another existing,
 writable directory. The selection is remembered across launches and preserved
