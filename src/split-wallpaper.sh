@@ -16,6 +16,7 @@ trap 'exit 130' TERM INT
 #   split-wallpaper.sh IMAGE [options]
 #
 # Options:
+#   --source-name NAME   Original filename used for output naming
 #   --config PATH
 #   --mode linked|quality
 #   --probe
@@ -78,12 +79,19 @@ shift
 MODE="linked"
 PROBE=false
 CONFIG_PATH=""
+SOURCE_NAME=""
 
 declare -a OFFSET_X=(0 0 0 0)
 declare -a OFFSET_Y=(0 0 0 0)
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --source-name)
+            [[ $# -ge 2 && -n "$2" ]] ||
+                die "--source-name requires a filename."
+            SOURCE_NAME="$2"
+            shift 2
+            ;;
         --config)
             [[ $# -ge 2 ]] || die "--config requires a path."
             CONFIG_PATH="$2"
@@ -294,25 +302,36 @@ suffix_for_slot() {
     esac
 }
 
-PAIR=1
-while true; do
-    PREFIX="$(printf '%03d' "$PAIR")"
-    collision=false
+# Build a readable, bounded prefix from the original image filename.
+source_label="${SOURCE_NAME:-${SOURCE##*/}}"
+source_stem="${source_label%.*}"
+NAME_STEM="$(printf '%s' "$source_stem" | LC_ALL=C tr -cs 'A-Za-z0-9_-' '-')"
+NAME_STEM="${NAME_STEM#-}"
+NAME_STEM="${NAME_STEM%-}"
+NAME_STEM="${NAME_STEM:0:100}"
+NAME_STEM="${NAME_STEM:-wallpaper}"
 
-    # A set number is occupied if ANY Hunu slot file already exists,
-    # even when that slot is disabled in the current monitor setup.
-    # This prevents stale files such as 003_c.png from being mixed with
-    # a newly generated 003_a.png / 003_b.png two-monitor set.
+TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+BASE_PREFIX="${NAME_STEM}_${TIMESTAMP}"
+ATTEMPT=1
+
+while true; do
+    PREFIX="$BASE_PREFIX"
+    if (( ATTEMPT > 1 )); then
+        PREFIX="${BASE_PREFIX}-$(printf '%02d' "$ATTEMPT")"
+    fi
+
+    collision=false
     for suffix in a b c; do
         candidate="$OUTPUT_DIR/${PREFIX}_${suffix}.png"
-        if [[ -e "$candidate" ]]; then
+        if [[ -e "$candidate" || -L "$candidate" ]]; then
             collision=true
             break
         fi
     done
 
     [[ "$collision" == false ]] && break
-    PAIR=$((PAIR + 1))
+    ATTEMPT=$((ATTEMPT + 1))
 done
 
 for i in "${ACTIVE[@]}"; do
