@@ -6,6 +6,7 @@ import Quickshell
 import Quickshell.Io
 import QtCore as Core
 
+// Workspace owns job state and delegates crop rendering and controls.
 Item {
     id: root
 
@@ -48,6 +49,7 @@ Item {
     property bool upscalerChecked: false
     property string upscaledSourcePath: ""
 
+    // Slots are 1-based; index 0 is unused. Active slots may be non-contiguous.
     property var outputName: ["", "", "", ""]
     property var pixelW: [0, 0, 0, 0]
     property var pixelH: [0, 0, 0, 0]
@@ -98,12 +100,6 @@ Item {
         return p
     }
 
-    function replaceAt(a, i, value) {
-        let b = a.slice()
-        b[i] = value
-        return b
-    }
-
     function valueAt(values, key, fallback) {
         return values[key] !== undefined ? values[key] : fallback
     }
@@ -127,6 +123,7 @@ Item {
             probe()
     }
 
+    // Linked movement uses the intersection of all enabled crop ranges.
     function offsetMinimum(slot, axis) {
         const limits = axis === "x" ? xMin : yMin
         if (mode !== "linked" || !linkedOffsets || activeSlots.length === 0)
@@ -309,6 +306,7 @@ Item {
         monitorCount = slots.length
     }
 
+    // Capture settings once; the controller holds cache access across both stages.
     function generate() {
         if (busy)
             return
@@ -757,205 +755,14 @@ Item {
             if (detail === "")
                 detail = stdoutText
             if (detail === "")
-                detail = "apply-serpantinum.sh exited with code " + exitCode + "."
+                detail = "Wallpaper Apply helper exited with code " + exitCode + "."
 
             root.processError = detail
             root.statusMessage = "Apply failed — generated files are safe."
         }
     }
 
-    component HunuRadioButton: RadioButton {
-        contentItem: Text {
-            text: parent.text
-            font: parent.font
-            color: parent.enabled ? Theme.text : Theme.muted
-            verticalAlignment: Text.AlignVCenter
-            leftPadding: parent.indicator.width + parent.spacing
-        }
-    }
-
-    component HelpTip: ToolTip {
-        delay: 450
-        timeout: 7000
-        background: Rectangle {
-            radius: 7
-            color: Theme.surface
-            border.width: 1
-            border.color: Qt.alpha(Theme.subtext, 0.28)
-        }
-        contentItem: Label {
-            text: parent.text
-            color: Theme.text
-            wrapMode: Text.WordWrap
-            font.pixelSize: 12
-        }
-    }
-
-    component MonitorPreview: Rectangle {
-        required property int slot
-        required property bool linked
-        property real previewScale: 1
-
-        color: Theme.surface
-        radius: 7
-        clip: true
-        border.width: 1
-        border.color: Qt.alpha(Theme.subtext, 0.25)
-
-        Image {
-            source: root.sourceUrl
-            asynchronous: true
-            smooth: true
-            fillMode: Image.Stretch
-            width: root.previewW * parent.previewScale
-            height: root.previewH * parent.previewScale
-            x: -(root.baseX[parent.slot] + root.offsetX[parent.slot]) * parent.previewScale
-            y: -(root.baseY[parent.slot] + root.offsetY[parent.slot]) * parent.previewScale
-            visible: root.sourceUrl !== ""
-        }
-
-        Column {
-            anchors.centerIn: parent
-            spacing: 2
-            Label {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Monitor " + parent.parent.slot
-                color: Theme.text
-                font.bold: true
-            }
-            Label {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.outputName[parent.parent.slot]
-                    + " · " + root.pixelW[parent.parent.slot]
-                    + "×" + root.pixelH[parent.parent.slot]
-                color: Theme.subtext
-                font.pixelSize: 11
-            }
-        }
-    }
-
-    component OffsetInput: TextField {
-        id: field
-        required property int slot
-        required property string axis
-
-        readonly property int currentValue: axis === "x"
-            ? root.offsetX[slot] : root.offsetY[slot]
-        readonly property int minimum: root.offsetMinimum(slot, axis)
-        readonly property int maximum: root.offsetMaximum(slot, axis)
-
-        Layout.preferredWidth: 80
-        text: String(currentValue)
-        color: Theme.text
-        horizontalAlignment: TextInput.AlignRight
-        selectByMouse: true
-        validator: IntValidator {}
-        background: Rectangle {
-            radius: 6
-            color: Theme.base
-            border.width: 1
-            border.color: field.activeFocus
-                ? Theme.subtext : Qt.alpha(Theme.subtext, 0.35)
-        }
-
-        function commitValue() {
-            if (acceptableInput) {
-                const value = Math.max(minimum,
-                    Math.min(maximum, Number(text)))
-                if (value !== currentValue)
-                    root.setOffset(slot, axis, value)
-            }
-            text = String(currentValue)
-        }
-
-        onCurrentValueChanged: {
-            if (!activeFocus)
-                text = String(currentValue)
-        }
-        onAccepted: commitValue()
-        onActiveFocusChanged: {
-            if (activeFocus)
-                selectAll()
-            else
-                commitValue()
-        }
-    }
-
-    component OffsetCard: Rectangle {
-        required property int slot
-        Layout.fillWidth: true
-        implicitHeight: 188
-        radius: 10
-        color: Theme.surface
-        border.width: 1
-        border.color: Qt.alpha(Theme.subtext, 0.22)
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 13
-            spacing: 7
-
-            Label {
-                text: "Monitor " + parent.parent.slot + " — " + root.outputName[parent.parent.slot]
-                color: Theme.text
-                font.bold: true
-                font.pixelSize: 15
-            }
-            Label {
-                text: root.pixelW[parent.parent.slot] + " × " + root.pixelH[parent.parent.slot]
-                color: Theme.muted
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Label { text: "X"; color: Theme.text; Layout.preferredWidth: 18 }
-                Slider {
-                    Layout.fillWidth: true
-                    from: root.offsetMinimum(parent.parent.parent.slot, "x")
-                    to: root.offsetMaximum(parent.parent.parent.slot, "x")
-                    value: root.offsetX[parent.parent.parent.slot]
-                    stepSize: 1
-                    enabled: from !== to
-                    onMoved: root.setOffset(parent.parent.parent.slot, "x", value)
-                }
-                OffsetInput {
-                    slot: parent.parent.parent.slot
-                    axis: "x"
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Label { text: "Y"; color: Theme.text; Layout.preferredWidth: 18 }
-                Slider {
-                    Layout.fillWidth: true
-                    from: root.offsetMinimum(parent.parent.parent.slot, "y")
-                    to: root.offsetMaximum(parent.parent.parent.slot, "y")
-                    value: root.offsetY[parent.parent.parent.slot]
-                    stepSize: 1
-                    enabled: from !== to
-                    onMoved: root.setOffset(parent.parent.parent.slot, "y", value)
-                }
-                OffsetInput {
-                    slot: parent.parent.parent.slot
-                    axis: "y"
-                }
-            }
-
-            Label {
-                Layout.fillWidth: true
-                text: root.mode === "linked"
-                    ? root.linkedOffsets
-                        ? "Move the shared composition across all enabled monitors."
-                        : "Move this monitor's crop independently; seams may no longer align."
-                    : "Move this monitor's independent crop within the original image."
-                color: Theme.muted
-                wrapMode: Text.WordWrap
-                font.pixelSize: 12
-            }
-        }
-    }
-
+    // Upper controls scroll; results and cancellation remain fixed below.
     ScrollView {
         id: workspaceScroll
         anchors.left: parent.left
@@ -1084,7 +891,8 @@ Item {
 
                 Repeater {
                     model: root.activeSlots.length
-                    delegate: MonitorPreview {
+                    delegate: HunuMonitorPreview {
+                        workspace: root
                         required property int index
                         slot: root.activeSlots[index]
                         linked: true
@@ -1110,7 +918,8 @@ Item {
                         Layout.fillHeight: true
                         property int slot: root.activeSlots[index]
 
-                        MonitorPreview {
+                        HunuMonitorPreview {
+                            workspace: root
                             anchors.centerIn: parent
                             slot: parent.slot
                             linked: false
@@ -1350,7 +1159,8 @@ Item {
             spacing: 12
             Repeater {
                 model: root.activeSlots.length
-                delegate: OffsetCard {
+                delegate: HunuOffsetCard {
+                    workspace: root
                     required property int index
                     slot: root.activeSlots[index]
                 }

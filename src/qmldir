@@ -1,3 +1,7 @@
 singleton Theme 1.0 Theme.qml
 SetupView 1.0 SetupView.qml
 WorkspaceView 1.0 WorkspaceView.qml
+HunuRadioButton 1.0 HunuRadioButton.qml
+HunuMonitorPreview 1.0 HunuMonitorPreview.qml
+HunuOffsetInput 1.0 HunuOffsetInput.qml
+HunuOffsetCard 1.0 HunuOffsetCard.qml
