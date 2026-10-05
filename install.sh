@@ -113,6 +113,7 @@ required_files=(
     "src/cache-path.sh"
     "src/manage-cache.sh"
     "src/run-generation.py"
+    "src/SettingsView.qml"
 )
 
 for file in "${required_files[@]}"; do
@@ -192,6 +193,7 @@ app_files=(
     "cache-path.sh"
     "manage-cache.sh"
     "run-generation.py"
+    "SettingsView.qml"
 
 )
 
@@ -262,7 +264,7 @@ cat > "$DESKTOP_FILE" <<EOF
 Type=Application
 Name=$DISPLAY_NAME
 Comment=Create coordinated wallpapers for 1–3 physical monitors
-Exec=quickshell -p $EXEC_CONFIG_DIR
+Exec=env QT_QPA_PLATFORMTHEME=xdgdesktopportal quickshell -p $EXEC_CONFIG_DIR
 Icon=$DESKTOP_ICON
 Terminal=false
 Categories=Graphics;Utility;
@@ -291,7 +293,7 @@ printf 'Icon:\n'
 printf '  %s\n\n' "$ICON_FILE"
 
 printf 'Launch manually with:\n'
-printf '  quickshell -p %s\n\n' "$CONFIG_DIR"
+printf '  env QT_QPA_PLATFORMTHEME=xdgdesktopportal quickshell -p %q\n\n' "$CONFIG_DIR"
 
 printf 'Optional wallpaper backends:\n'
 

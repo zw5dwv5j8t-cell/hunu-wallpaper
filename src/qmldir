@@ -5,3 +5,4 @@ HunuRadioButton 1.0 HunuRadioButton.qml
 HunuMonitorPreview 1.0 HunuMonitorPreview.qml
 HunuOffsetInput 1.0 HunuOffsetInput.qml
 HunuOffsetCard 1.0 HunuOffsetCard.qml
+SettingsView 1.0 SettingsView.qml

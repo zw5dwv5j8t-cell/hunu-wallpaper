@@ -757,12 +757,22 @@ Item {
 
                 RowLayout {
                     Layout.fillWidth: true
+
+                    HunuButton {
+                        label: "Back"
+                        visible: root.allowCancel
+                        enabled: !detector.running
+                        onClicked: root.cancelRequested()
+                    }
+
                     HunuButton {
                         label: "Detect Again"
                         enabled: !detector.running
                         onClicked: root.detect()
                     }
+
                     Item { Layout.fillWidth: true }
+
                     HunuButton {
                         label: "Continue"
                         enabled: root.supportedCount > 0 && !detector.running

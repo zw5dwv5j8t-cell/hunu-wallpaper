@@ -83,6 +83,13 @@ Item {
 
     signal monitorSetupRequested()
 
+    SettingsView {
+        id: settingsDialog
+        workspace: root
+        onChooseOutputFolderRequested: outputFolderDialog.open()
+        onMonitorSetupRequested: root.monitorSetupRequested()
+    }
+
     Component.onCompleted: {
         checkUpscaler()
         loadOutputDirectory()
@@ -800,10 +807,10 @@ Item {
                 }
             }
             Button {
-                text: "Monitor Setup"
-                onClicked: root.monitorSetupRequested()
+                text: "Settings"
+                onClicked: settingsDialog.open()
                 ToolTip.visible: hovered
-                ToolTip.text: "Change monitor assignment, physical measurements, or desk position."
+                ToolTip.text: "Output folder, wallpaper backend, AI cache, and app information."
             }
             Button {
                 text: "Choose Wallpaper"
@@ -827,27 +834,6 @@ Item {
                     ? "Save monitor setup first" : root.outputDirectory
                 color: Theme.text
                 elide: Text.ElideMiddle
-            }
-            Label {
-                text: "Apply using"
-                color: Theme.subtext
-            }
-            ComboBox {
-                Layout.preferredWidth: 150
-                model: ["Serpantinum", "hyprpaper", "awww"]
-                currentIndex: Math.max(0, root.applyBackendValues.indexOf(root.applyBackend))
-                onActivated: function(index) {
-                    root.saveApplyBackend(root.applyBackendValues[index])
-                    currentIndex = Qt.binding(function() {
-                        return Math.max(0,
-                            root.applyBackendValues.indexOf(root.applyBackend))
-                    })
-                }
-            }
-            Button {
-                text: "Choose Folder"
-                enabled: root.outputDirectory !== ""
-                onClicked: outputFolderDialog.open()
             }
         }
 
@@ -1131,27 +1117,6 @@ Item {
                 MouseArea { id: positionHelp; anchors.fill: parent; hoverEnabled: true }
             }
             Item { Layout.fillWidth: true }
-            Label {
-                text: !root.cacheChecked
-                    ? "AI cache: checking…"
-                    : "AI cache: "
-                        + (root.cacheBytes / (1024 * 1024)).toFixed(1)
-                        + " MiB · " + root.cacheFiles
-                        + (root.cacheFiles === 1 ? " image" : " images")
-                color: Theme.subtext
-                font.pixelSize: 12
-            }
-
-            Button {
-                text: "Clear AI Cache"
-                enabled: root.cacheChecked
-                    && root.cacheFiles > 0
-                    && !cacheProcess.running
-                    && !root.busy
-                onClicked: root.manageCache("clear")
-                ToolTip.visible: hovered
-                ToolTip.text: "Remove reusable AI images. Source images and generated wallpapers are preserved."
-            }
         }
 
         RowLayout {
