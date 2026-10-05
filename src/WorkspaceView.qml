@@ -26,6 +26,7 @@ Item {
         checkApplyBackend()
     }
     property string mode: "linked"
+    property bool linkedOffsets: true
 
     property int monitorCount: 0
     property var activeSlots: []
@@ -125,11 +126,51 @@ Item {
             probe()
     }
 
+    function offsetMinimum(slot, axis) {
+        const limits = axis === "x" ? xMin : yMin
+        if (mode !== "linked" || !linkedOffsets || activeSlots.length === 0)
+            return limits[slot]
+
+        let minimum = limits[activeSlots[0]]
+        for (let activeSlot of activeSlots)
+            minimum = Math.max(minimum, limits[activeSlot])
+        return minimum
+    }
+
+    function offsetMaximum(slot, axis) {
+        const limits = axis === "x" ? xMax : yMax
+        if (mode !== "linked" || !linkedOffsets || activeSlots.length === 0)
+            return limits[slot]
+
+        let maximum = limits[activeSlots[0]]
+        for (let activeSlot of activeSlots)
+            maximum = Math.min(maximum, limits[activeSlot])
+        return maximum
+    }
+
     function setOffset(slot, axis, value) {
+        const position = Math.max(offsetMinimum(slot, axis),
+            Math.min(offsetMaximum(slot, axis), Math.round(value)))
+        let offsets = (axis === "x" ? offsetX : offsetY).slice()
+        let changed = false
+
+        const slots = mode === "linked" && linkedOffsets
+            ? activeSlots : [slot]
+        for (let activeSlot of slots) {
+            if (offsets[activeSlot] !== position) {
+                offsets[activeSlot] = position
+                changed = true
+            }
+        }
+
+        if (!changed)
+            return
+
         if (axis === "x")
-            offsetX = replaceAt(offsetX, slot, Math.round(value))
+            offsetX = offsets
         else
-            offsetY = replaceAt(offsetY, slot, Math.round(value))
+            offsetY = offsets
+
         invalidateGenerated()
         statusMessage = "Preview changed — generate again."
     }
@@ -784,10 +825,8 @@ Item {
 
         readonly property int currentValue: axis === "x"
             ? root.offsetX[slot] : root.offsetY[slot]
-        readonly property int minimum: axis === "x"
-            ? root.xMin[slot] : root.yMin[slot]
-        readonly property int maximum: axis === "x"
-            ? root.xMax[slot] : root.yMax[slot]
+        readonly property int minimum: root.offsetMinimum(slot, axis)
+        readonly property int maximum: root.offsetMaximum(slot, axis)
 
         Layout.preferredWidth: 80
         text: String(currentValue)
@@ -856,8 +895,8 @@ Item {
                 Label { text: "X"; color: Theme.text; Layout.preferredWidth: 18 }
                 Slider {
                     Layout.fillWidth: true
-                    from: root.xMin[parent.parent.parent.slot]
-                    to: root.xMax[parent.parent.parent.slot]
+                    from: root.offsetMinimum(parent.parent.parent.slot, "x")
+                    to: root.offsetMaximum(parent.parent.parent.slot, "x")
                     value: root.offsetX[parent.parent.parent.slot]
                     stepSize: 1
                     enabled: from !== to
@@ -874,8 +913,8 @@ Item {
                 Label { text: "Y"; color: Theme.text; Layout.preferredWidth: 18 }
                 Slider {
                     Layout.fillWidth: true
-                    from: root.yMin[parent.parent.parent.slot]
-                    to: root.yMax[parent.parent.parent.slot]
+                    from: root.offsetMinimum(parent.parent.parent.slot, "y")
+                    to: root.offsetMaximum(parent.parent.parent.slot, "y")
                     value: root.offsetY[parent.parent.parent.slot]
                     stepSize: 1
                     enabled: from !== to
@@ -890,7 +929,9 @@ Item {
             Label {
                 Layout.fillWidth: true
                 text: root.mode === "linked"
-                    ? "Move this crop while preserving the shared composition."
+                    ? root.linkedOffsets
+                        ? "Move the shared composition across all enabled monitors."
+                        : "Move this monitor's crop independently; seams may no longer align."
                     : "Move this monitor's independent crop within the original image."
                 color: Theme.muted
                 wrapMode: Text.WordWrap
@@ -1093,6 +1134,31 @@ Item {
                 }
                 ToolTip.visible: hovered
                 ToolTip.text: "Crop the original image separately for each monitor to preserve maximum source detail."
+            }
+            CheckBox {
+                id: linkedMovementControl
+                text: "Move together"
+                visible: root.mode === "linked"
+                checked: root.linkedOffsets
+
+                contentItem: Text {
+                    text: linkedMovementControl.text
+                    font: linkedMovementControl.font
+                    color: linkedMovementControl.enabled
+                        ? Theme.text : Theme.muted
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: linkedMovementControl.indicator.width
+                        + linkedMovementControl.spacing
+                }
+
+                onClicked: {
+                    root.linkedOffsets = checked
+                    if (checked && root.activeSlots.length > 0) {
+                        const slot = root.activeSlots[0]
+                        root.setOffset(slot, "x", root.offsetX[slot])
+                        root.setOffset(slot, "y", root.offsetY[slot])
+                    }
+                }
             }
             Item { Layout.fillWidth: true }
             Button {
