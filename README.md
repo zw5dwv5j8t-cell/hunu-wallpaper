@@ -45,6 +45,7 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Live generation stages and available AI upscaling percentages
 - Cancel generation with cleanup of unfinished files and child processes
 - Scrollable workspace with Generate and Apply kept visible
+- Manual update check in About with a link to newer releases
 
 ## Requirements
 
@@ -161,6 +162,11 @@ Open **Settings** from the workspace header:
 - **AI Cache:** view reusable AI image count and size, or clear cached images.
 - **About:** view the app version, theme provider, optional AI availability,
   required-command checks, license, and repository link.
+
+In Settings → About, **Check for updates** checks the latest published GitHub
+release. When a newer version is available, **Open release page** opens its
+release notes. Checks run only when requested and require an internet connection.
+Hunu does not download or install updates.
 
 Composition controls remain in the workspace: Choose Wallpaper, wallpaper
 mode, Move together, AI scale, and position offsets. Generate, Cancel, Apply,
@@ -368,6 +374,7 @@ src/
   cache-path.sh
   check-apply-backend.sh
   check-dependencies.sh
+  check-updates.py
   check-monitor-config.sh
   check-upscaler.sh
   detect-monitors.sh
