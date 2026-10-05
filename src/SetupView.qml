@@ -478,9 +478,10 @@ Item {
             }
         }
 
-        Component.onCompleted: syncCurrentIndex()
+        Component.onCompleted: Qt.callLater(syncCurrentIndex)
         onAssignedIndexChanged: syncCurrentIndex()
-        onAvailableEntriesChanged: syncCurrentIndex()
+        onAvailableEntriesChanged: Qt.callLater(syncCurrentIndex)
+        onModelChanged: Qt.callLater(syncCurrentIndex)
 
         onActivated: function(i) {
             if (!syncing && i >= 0 && i < availableEntries.length)
