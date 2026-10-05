@@ -106,6 +106,8 @@ required_files=(
     "src/apply-serpantinum.sh"
     "src/apply-wallpapers.sh"
     "assets/hunu-wallpaper.png"
+    "src/cache-path.sh"
+    "src/manage-cache.sh"
 )
 
 for file in "${required_files[@]}"; do
@@ -178,6 +180,9 @@ app_files=(
     "detect-theme.sh"
     "apply-serpantinum.sh"
     "apply-wallpapers.sh"
+    "cache-path.sh"
+    "manage-cache.sh"
+
 )
 
 for file in "${app_files[@]}"; do
@@ -197,6 +202,7 @@ chmod +x \
     "$CONFIG_DIR/apply-wallpapers.sh" \
     "$CONFIG_DIR/check-upscaler.sh" \
     "$CONFIG_DIR/check-apply-backend.sh" \
+    "$CONFIG_DIR/manage-cache.sh" \
     "$CONFIG_DIR/upscale-image.sh"
 
 # Deliberately do NOT install config/config.conf.

@@ -16,6 +16,9 @@ Item {
     readonly property var applyBackendValues: ["serpantinum", "hyprpaper", "awww"]
     property bool backendReady: false
     property string backendStatus: "Checking wallpaper backend…"
+    property real cacheBytes: 0
+    property int cacheFiles: 0
+    property bool cacheChecked: false
 
     onApplyBackendChanged: {
         backendReady = false
@@ -66,7 +69,7 @@ Item {
     property string statusMessage: "Choose a wallpaper."
 
     property bool applying: false
-    readonly property bool busy: upscaleProcess.running || splitterProcess.running || applying || outputSaveProcess.running || backendSaveProcess.running
+    readonly property bool busy: upscaleProcess.running || splitterProcess.running || applying || outputSaveProcess.running || backendSaveProcess.running || (cacheProcess.running && cacheProcess.action === "clear")
     property var pendingSplitCommand: []
 
     signal monitorSetupRequested()
@@ -184,6 +187,16 @@ Item {
             scriptPath("load-monitor-config.sh"), configPath
         ]
         outputConfigLoader.running = true
+    }
+
+        function manageCache(action) {
+        if (cacheProcess.running || busy)
+            return
+        cacheProcess.action = action
+        cacheProcess.command = [
+            scriptPath("manage-cache.sh"), action
+        ]
+        cacheProcess.running = true
     }
 
     function checkUpscaler() {
@@ -525,6 +538,55 @@ Item {
         }
     }
 
+        Timer {
+        interval: 5000
+        repeat: true
+        triggeredOnStart: true
+        running: !root.busy
+        onTriggered: root.manageCache("stats")
+    }
+
+    Process {
+        id: cacheProcess
+        property string action: "stats"
+        property string errorText: ""
+
+        onRunningChanged: {
+            if (running)
+                errorText = ""
+        }
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                for (let line of text.split("\n")) {
+                    if (line.startsWith("CACHE_BYTES="))
+                        root.cacheBytes = Number(line.substring(12))
+                    else if (line.startsWith("CACHE_FILES="))
+                        root.cacheFiles = Number(line.substring(12))
+                }
+            }
+        }
+
+        stderr: StdioCollector {
+            onStreamFinished: cacheProcess.errorText = text.trim()
+        }
+
+        onExited: function(exitCode) {
+            if (exitCode !== 0) {
+                root.processError = errorText !== ""
+                    ? errorText : "Could not inspect or clear AI cache."
+                return
+            }
+
+            root.cacheChecked = true
+            if (action === "clear") {
+                root.upscaledSourcePath = ""
+                root.processError = ""
+                root.statusMessage = "AI cache cleared."
+            }
+        }
+    }
+
     Process {
         id: upscaleProcess
         property string errorText: ""
@@ -833,11 +895,23 @@ Item {
         }
     }
 
-    ColumnLayout {
-        anchors.fill: parent
+    ScrollView {
+        id: workspaceScroll
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: workspaceResults.top
         anchors.margins: 22
-        spacing: 12
-        enabled: !root.busy
+        anchors.bottomMargin: 12
+        clip: true
+        contentWidth: availableWidth
+        contentHeight: workspaceContent.implicitHeight
+
+        ColumnLayout {
+            id: workspaceContent
+            width: workspaceScroll.availableWidth
+            spacing: 12
+            enabled: !root.busy
 
         RowLayout {
             Layout.fillWidth: true
@@ -1162,6 +1236,27 @@ Item {
                 MouseArea { id: positionHelp; anchors.fill: parent; hoverEnabled: true }
             }
             Item { Layout.fillWidth: true }
+            Label {
+                text: !root.cacheChecked
+                    ? "AI cache: checking…"
+                    : "AI cache: "
+                        + (root.cacheBytes / (1024 * 1024)).toFixed(1)
+                        + " MiB · " + root.cacheFiles
+                        + (root.cacheFiles === 1 ? " image" : " images")
+                color: Theme.subtext
+                font.pixelSize: 12
+            }
+
+            Button {
+                text: "Clear AI Cache"
+                enabled: root.cacheChecked
+                    && root.cacheFiles > 0
+                    && !cacheProcess.running
+                    && !root.busy
+                onClicked: root.manageCache("clear")
+                ToolTip.visible: hovered
+                ToolTip.text: "Remove reusable AI images. Source images and generated wallpapers are preserved."
+            }
         }
 
         RowLayout {
@@ -1176,9 +1271,17 @@ Item {
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 118
+        } // workspaceContent
+    } // workspaceScroll
+
+    Rectangle {
+        id: workspaceResults
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 22
+        height: 118
+        enabled: !root.busy
             radius: 10
             color: Theme.surface
             clip: true
@@ -1277,6 +1380,6 @@ Item {
                     ToolTip.text: "Apply generated wallpapers through the selected backend."
                  }
             }
-        }
+
     }
 }

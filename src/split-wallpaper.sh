@@ -122,6 +122,15 @@ for i in 1 2 3; do
     is_integer "${OFFSET_Y[$i]}" || die "Monitor $i Y wallpaper offset must be an integer."
 done
 
+# Prevent cache clearing while this process reads its source image.
+CACHE_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$CACHE_SCRIPT_DIR/cache-path.sh"
+HUNU_CACHE_DIR="$(hunu_cache_directory)"
+mkdir -p -- "$HUNU_CACHE_DIR"
+command -v flock >/dev/null 2>&1 || die "'flock' was not found."
+exec 8>"$HUNU_CACHE_DIR/.hunu-cache.lock"
+flock -s 8
+
 [[ -f "$SOURCE" ]] || die "Source image does not exist: $SOURCE"
 command -v magick >/dev/null 2>&1 || die "ImageMagick 'magick' was not found."
 command -v awk >/dev/null 2>&1 || die "'awk' was not found."

@@ -57,25 +57,9 @@ if [[ -z "$INPUT" ]]; then
 fi
 
 if [[ -z "$OUTPUT" ]]; then
-    CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
-
-    # Installed copies live in ~/.config/$APP_NAME, so derive the cache
-    # namespace from the installation directory. This keeps alternate/test
-    # installations isolated. When run directly from the repository's src/
-    # directory, retain the normal hunu-wallpaper cache name.
     SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-    APP_NAME="${HUNU_APP_NAME:-$(basename -- "$SCRIPT_DIR")}"
-
-    if [[ "$APP_NAME" == "src" ]]; then
-        APP_NAME="hunu-wallpaper"
-    fi
-
-    if [[ ! "$APP_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-        echo "ERROR: Invalid HUNU_APP_NAME. Use letters, numbers, dots, underscores, or hyphens; start with a letter or number." >&2
-        exit 2
-    fi
-
-    CACHE_DIR="$CACHE_HOME/$APP_NAME"
+    source "$SCRIPT_DIR/cache-path.sh"
+    CACHE_DIR="$(hunu_cache_directory)"
     USE_CACHE=true
 fi
 
@@ -109,6 +93,11 @@ if [[ "$USE_CACHE" == true ]]; then
             exit 127
         }
     done
+
+    # Cache clearing takes an exclusive lock on this same file.
+    mkdir -p -- "$CACHE_DIR"
+    exec 8>"$CACHE_DIR/.hunu-cache.lock"
+    flock -s 8
 
     SOURCE_HASH="$(sha256sum < "$INPUT")"
     SOURCE_HASH="${SOURCE_HASH%% *}"
