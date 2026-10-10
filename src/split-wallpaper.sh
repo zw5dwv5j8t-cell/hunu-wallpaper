@@ -80,12 +80,19 @@ MODE="linked"
 PROBE=false
 CONFIG_PATH=""
 SOURCE_NAME=""
+AI_SCALE=1
 
 declare -a OFFSET_X=(0 0 0 0)
 declare -a OFFSET_Y=(0 0 0 0)
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --ai-scale)
+            [[ $# -ge 2 && "$2" =~ ^[1-4]$ ]] ||
+                die "--ai-scale requires 1, 2, 3, or 4."
+            AI_SCALE="$2"
+            shift 2
+            ;;
         --source-name)
             [[ $# -ge 2 && -n "$2" ]] ||
                 die "--source-name requires a filename."
@@ -143,6 +150,7 @@ flock -s 8
 
 [[ -f "$SOURCE" ]] || die "Source image does not exist: $SOURCE"
 command -v magick >/dev/null 2>&1 || die "ImageMagick 'magick' was not found."
+command -v jq >/dev/null 2>&1 || die "'jq' was not found."
 command -v awk >/dev/null 2>&1 || die "'awk' was not found."
 
 # ------------------------------------------------------------
@@ -322,6 +330,7 @@ while true; do
     fi
 
     collision=false
+    [[ ! -e "$OUTPUT_DIR/${PREFIX}.hunu.json" && ! -L "$OUTPUT_DIR/${PREFIX}.hunu.json" ]] || collision=true
     for suffix in a b c; do
         candidate="$OUTPUT_DIR/${PREFIX}_${suffix}.png"
         if [[ -e "$candidate" || -L "$candidate" ]]; then
@@ -600,11 +609,13 @@ for i in "${ACTIVE[@]}"; do
     OUTPUT_FILE[$i]="$WORK_DIR/${PREFIX}_${OUTPUT_SUFFIX[$i]}.png"
 done
 
+MANIFEST_FILE="$OUTPUT_DIR/${PREFIX}.hunu.json"
 PUBLISHING=false
 PUBLISHED=false
 
 cleanup_generation() {
     if [[ "$PUBLISHING" == true && "$PUBLISHED" == false ]]; then
+        rm -f -- "$MANIFEST_FILE"
         for slot in "${ACTIVE[@]}"; do
             rm -f -- "${FINAL_OUTPUT_FILE[$slot]}"
         done
@@ -714,6 +725,27 @@ case "$MODE" in
     quality) quality_mode ;;
 esac
 
+# Store relative filenames so a completed set can be moved to another folder.
+metadata='[]'
+position_scale=1
+[[ "$MODE" != "quality" ]] || position_scale="$AI_SCALE"
+for i in "${ACTIVE[@]}"; do
+    metadata="$(jq -c --argjson slot "$i" --arg output "${OUTPUT[$i]}" \
+        --arg file "${PREFIX}_${OUTPUT_SUFFIX[$i]}.png" \
+        --argjson x "${OFFSET_X[$i]}" --argjson y "${OFFSET_Y[$i]}" \
+        --argjson positionScale "$position_scale" \
+        '. + [{slot: $slot, output: $output, file: $file,
+               offset_x: ($x / $positionScale), offset_y: ($y / $positionScale)}]'  <<< "$metadata")"
+done
+jq -n --arg set "$PREFIX" --arg source "$source_label" \
+    --arg created "$(date --iso-8601=seconds)" --arg mode "$MODE" \
+    --argjson aiScale "$AI_SCALE" \
+    --argjson monitors "$metadata" \
+    '{version: 1, set: $set, source: $source, created: $created,
+      mode: $mode, ai_scale: $aiScale, monitors: $monitors}' > "$WORK_DIR/set.hunu.json"
+[[ ! -e "$MANIFEST_FILE" && ! -L "$MANIFEST_FILE" ]] ||
+    die "Output metadata already exists: $MANIFEST_FILE"
+
 # Check every destination before publishing; preserve existing files.
 for i in "${ACTIVE[@]}"; do
     [[ ! -e "${FINAL_OUTPUT_FILE[$i]}" &&
@@ -727,6 +759,7 @@ for i in "${ACTIVE[@]}"; do
     mv -T -- "${OUTPUT_FILE[$i]}" "${FINAL_OUTPUT_FILE[$i]}"
     OUTPUT_FILE[$i]="${FINAL_OUTPUT_FILE[$i]}"
 done
+mv -T -- "$WORK_DIR/set.hunu.json" "$MANIFEST_FILE"
 PUBLISHED=true
 
 # ------------------------------------------------------------

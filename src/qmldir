@@ -13,3 +13,5 @@ WorkspaceResults 1.0 WorkspaceResults.qml
 HunuNumberInput 1.0 HunuNumberInput.qml
 SetupLayoutPreview 1.0 SetupLayoutPreview.qml
 SetupGuide 1.0 SetupGuide.qml
+SavedWallpapersView 1.0 SavedWallpapersView.qml
+SavedSetPreview 1.0 SavedSetPreview.qml

@@ -14,7 +14,7 @@ Rectangle {
     radius: 7
     clip: true
     border.width: 1
-    border.color: Qt.alpha(Theme.subtext, 0.25)
+    border.color: Theme.subtext
 
     Image {
         source: workspace.sourceUrl
@@ -46,4 +46,13 @@ Rectangle {
             font.pixelSize: 11
         }
     }
+    // Draw above the image so the monitor edge stays visible.
+    Rectangle {
+        anchors.fill: parent
+        color: "transparent"
+        radius: preview.radius
+        border.width: 1
+        border.color: Theme.subtext
+    }
+
 }

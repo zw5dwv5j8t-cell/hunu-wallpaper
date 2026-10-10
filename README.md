@@ -47,6 +47,23 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Scrollable workspace with Generate and Apply kept visible
 - Manual update check in About with a link to newer releases
 
+## Previous wallpapers
+
+Open **Previous wallpapers** to browse sets in the current output folder and
+apply them again without generating. New sets include a `.hunu.json` metadata
+file recording the original output assignments, generation mode, AI upscale factor,
+and the X/Y offsets entered for each monitor. These settings are displayed in
+Previous wallpapers. Earlier sets without these fields show “not recorded”. Keep this file with its PNGs
+when moving a set. The picker uses these assignments automatically.
+
+Sets without metadata are shown for reference but cannot be applied from this
+picker. Recorded outputs must still be connected and the selected Apply backend
+must be responding. Missing images or invalid metadata disable Apply.
+
+After a successful Apply, the main view shows the saved set in your current
+physical monitor layout. Choose Wallpaper or Return to editing to resume the
+editing workspace. The picker scans only the chosen output folder.
+
 ## Requirements
 
 Required:
@@ -375,6 +392,8 @@ src/
   check-apply-backend.sh
   check-dependencies.sh
   check-updates.py
+  list-wallpaper-sets.py
+  SavedWallpapersView.qml
   check-monitor-config.sh
   check-upscaler.sh
   detect-monitors.sh

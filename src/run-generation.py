@@ -97,7 +97,8 @@ def main():
     if "--probe" in command:
         parser.error("Probes must run directly, not through the generation controller")
     # Capture the original filename before upscaling changes the input path.
-    command.extend(["--source-name", Path(command[1]).name])
+    command.extend(["--source-name", Path(command[1]).name,
+                    "--ai-scale", args.scale])
 
     signal.signal(signal.SIGTERM, request_cancel)
     signal.signal(signal.SIGINT, request_cancel)

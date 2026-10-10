@@ -61,7 +61,9 @@ Rectangle {
                 }
                 Label {
                     width: parent.width
-                    text: results.workspace.generatedPair !== ""
+                    text: results.workspace.appliedSavedSet
+                        ? results.workspace.statusMessage + " · " + results.workspace.appliedSavedSet.name
+                        : results.workspace.generatedPair !== ""
                         ? results.workspace.statusMessage + "  ·  Set "
                             + results.workspace.generatedPair
                         : results.workspace.statusMessage
@@ -77,7 +79,7 @@ Rectangle {
                         required property int index
                         property int slot: results.workspace.activeSlots[index]
                         width: resultContent.width
-                        visible: results.workspace.generatedFile[slot] !== ""
+                        visible: !results.workspace.appliedSavedSet && results.workspace.generatedFile[slot] !== ""
                         text: "Monitor " + slot + " · "
                             + results.workspace.outputName[slot] + " · "
                             + results.workspace.generatedFile[slot].split("/").pop()
@@ -116,7 +118,7 @@ Rectangle {
                 ? results.workspace.jobPhase === "upscale"
                     ? "Upscaling…" : "Generating…"
                 : "Generate"
-            enabled: results.workspace.sourcePath !== ""
+            enabled: !results.workspace.appliedSavedSet && results.workspace.sourcePath !== ""
                 && !results.workspace.busy
             onClicked: results.workspace.generate()
             ToolTip.visible: hovered

@@ -7,7 +7,48 @@ Dialog {
 
     property int step: 0
     property bool animationPaused: false
-    onStepChanged: animationPaused = false
+    property real animationTime: 0
+    readonly property var movementFrames: [
+        {t: 0, x: 165, y: 5},
+        {t: 2000, x: 165, y: 65},
+        {t: 2800, x: 165, y: 65},
+        {t: 4800, x: 165, y: 5},
+        {t: 5600, x: 165, y: 5},
+        {t: 6600, x: 165, y: 35},
+        {t: 8400, x: 128, y: 35},
+        {t: 9200, x: 128, y: 35},
+        {t: 11400, x: 205, y: 35},
+        {t: 12200, x: 205, y: 35},
+        {t: 14000, x: 165, y: 35},
+        {t: 14800, x: 165, y: 35},
+        {t: 15800, x: 165, y: 5},
+        {t: 16600, x: 165, y: 5}
+    ]
+
+    function animatedCoordinate(axis) {
+        for (let i = 1; i < movementFrames.length; ++i) {
+            const end = movementFrames[i]
+            if (animationTime <= end.t) {
+                const start = movementFrames[i - 1]
+                const progress = Math.max(0, Math.min(1,
+                    (animationTime - start.t) / (end.t - start.t)))
+                const eased = (1 - Math.cos(Math.PI * progress)) / 2
+                return start[axis] + (end[axis] - start[axis]) * eased
+            }
+        }
+        return movementFrames[0][axis]
+    }
+    onStepChanged: resetIllustration()
+
+    function resetIllustration() {
+        placementAnimation.stop()
+        animationPaused = false
+        animationTime = 0
+        if (visible && step === 1)
+            placementAnimation.start()
+    }
+
+    onClosed: resetIllustration()
     readonly property var headings: [
         "Measure the whole monitor",
         "Describe its position on your desk",
@@ -36,7 +77,7 @@ Dialog {
 
     onOpened: {
         step = 0
-        animationPaused = false
+        resetIllustration()
     }
 
     background: Rectangle {
@@ -118,8 +159,8 @@ Dialog {
                 Rectangle {
                     id: secondMonitor
                     visible: guide.step !== 0
-                    x: 165
-                    y: 55
+                    x: guide.step === 1 ? guide.animatedCoordinate("x") : 165
+                    y: guide.step === 1 ? guide.animatedCoordinate("y") : 55
                     width: 200
                     height: 110
                     radius: 5
@@ -133,82 +174,17 @@ Dialog {
                         color: Theme.text
                     }
 
-                    SequentialAnimation {
-                        running: guide.visible && guide.step === 1
+                    // Keep one timeline running through movement and holds.
+                    NumberAnimation {
+                        id: placementAnimation
+                        target: guide
+                        property: "animationTime"
+                        from: 0
+                        to: 16600
+                        duration: 16600
+                        easing.type: Easing.Linear
                         paused: guide.animationPaused
                         loops: Animation.Infinite
-
-                        // Demonstrate vertical placement with X held fixed.
-                        PropertyAction {
-                            target: secondMonitor
-                            property: "x"
-                            value: 165
-                        }
-                        NumberAnimation {
-                            target: secondMonitor
-                            property: "y"
-                            from: 5
-                            to: 65
-                            duration: 2000
-                            easing.type: Easing.InOutSine
-                        }
-                        PauseAnimation { duration: 800 }
-                        NumberAnimation {
-                            target: secondMonitor
-                            property: "y"
-                            from: 65
-                            to: 5
-                            duration: 2000
-                            easing.type: Easing.InOutSine
-                        }
-                        PauseAnimation { duration: 800 }
-                        NumberAnimation {
-                            target: secondMonitor
-                            property: "y"
-                            from: 5
-                            to: 35
-                            duration: 1000
-                            easing.type: Easing.InOutSine
-                        }
-
-                        // Move inward, outward, then return. X remains positive.
-                        NumberAnimation {
-                            target: secondMonitor
-                            property: "x"
-                            from: 165
-                            to: 128
-                            duration: 1800
-                            easing.type: Easing.InOutSine
-                        }
-                        PauseAnimation { duration: 800 }
-                        NumberAnimation {
-                            target: secondMonitor
-                            property: "x"
-                            from: 128
-                            to: 205
-                            duration: 2200
-                            easing.type: Easing.InOutSine
-                        }
-                        PauseAnimation { duration: 800 }
-                        NumberAnimation {
-                            target: secondMonitor
-                            property: "x"
-                            from: 205
-                            to: 165
-                            duration: 1800
-                            easing.type: Easing.InOutSine
-                        }
-                        PauseAnimation { duration: 800 }
-                        // Return to the starting position before repeating.
-                        NumberAnimation {
-                            target: secondMonitor
-                            property: "y"
-                            from: 35
-                            to: 5
-                            duration: 1000
-                            easing.type: Easing.InOutSine
-                        }
-                        PauseAnimation { duration: 800 }
                     }
                 }
 
@@ -220,63 +196,49 @@ Dialog {
                     color: Theme.subtext
                 }
 
-                Canvas {
-                    id: positionArrows
-                    anchors.fill: parent
+                // Scene-graph lines avoid repainting a Canvas every frame.
+                Item {
                     visible: guide.step === 1
-
-                    onVisibleChanged: requestPaint()
-                    onWidthChanged: requestPaint()
-                    onHeightChanged: requestPaint()
-
-                    onPaint: {
-                        const ctx = getContext("2d")
-                        ctx.clearRect(0, 0, width, height)
-                        ctx.strokeStyle = Theme.success.toString()
-                        ctx.fillStyle = Theme.success.toString()
-                        ctx.lineWidth = 2
-
-                        const left = secondMonitor.x
-                        const top = secondMonitor.y
-
-                        // X follows Monitor 2's outside left edge.
-                        ctx.beginPath()
-                        ctx.moveTo(38, 27)
-                        ctx.lineTo(left, 27)
-                        ctx.moveTo(43, 23)
-                        ctx.lineTo(38, 27)
-                        ctx.lineTo(43, 31)
-                        ctx.moveTo(left - 5, 23)
-                        ctx.lineTo(left, 27)
-                        ctx.lineTo(left - 5, 31)
-                        ctx.moveTo(38, 27)
-                        ctx.lineTo(38, 35)
-                        ctx.stroke()
-
-                        // Y follows Monitor 2's outside top edge.
-                        ctx.beginPath()
-                        ctx.moveTo(left - 10, 35)
-                        ctx.lineTo(left - 10, top)
-                        ctx.moveTo(left - 15, 35)
-                        ctx.lineTo(left, 35)
-                        ctx.moveTo(left - 15, top)
-                        ctx.lineTo(left, top)
-                        ctx.stroke()
-
-                        ctx.beginPath()
-                        ctx.arc(38, 35, 3, 0, Math.PI * 2)
-                        ctx.fill()
+                    anchors.fill: parent
+                    Rectangle {
+                        x: 38; y: 26
+                        width: Math.max(0, secondMonitor.x - 38); height: 2
+                        color: Theme.success
                     }
-
-                    Connections {
-                        target: secondMonitor
-
-                        function onXChanged() {
-                            positionArrows.requestPaint()
+                    Rectangle {
+                        x: 37; y: 27; width: 2; height: 8
+                        color: Theme.success
+                    }
+                    Rectangle {
+                        x: 35; y: 32; width: 6; height: 6; radius: 3
+                        color: Theme.success
+                    }
+                    Repeater {
+                        model: [0, 1, 2, 3]
+                        delegate: Rectangle {
+                            required property int index
+                            x: index < 2 ? 38 : secondMonitor.x - 6
+                            y: index % 2 === 0 ? 24 : 28
+                            width: 7; height: 2
+                            rotation: index % 2 === 0 ? -40 : 40
+                            color: Theme.success
                         }
-                        function onYChanged() {
-                            positionArrows.requestPaint()
-                        }
+                    }
+                    Rectangle {
+                        x: secondMonitor.x - 11
+                        y: Math.min(35, secondMonitor.y)
+                        width: 2; height: Math.abs(secondMonitor.y - 35)
+                        color: Theme.success
+                    }
+                    Rectangle {
+                        x: secondMonitor.x - 15; y: 34
+                        width: 15; height: 2
+                        color: Theme.success
+                    }
+                    Rectangle {
+                        x: secondMonitor.x - 15; y: secondMonitor.y - 1
+                        width: 15; height: 2
+                        color: Theme.success
                     }
                 }
                 Label {

@@ -72,6 +72,13 @@ Item {
     property string processError: ""
     property string statusMessage: "Choose a wallpaper."
 
+    property var configuredPreviewSet: ({monitors: []})
+    property var configuredPreviewLayout: ({})
+    property var appliedSavedSet: null
+    property var savedSetLayout: ({})
+    property var pendingSavedSet: null
+    property var pendingSavedLayout: ({})
+
     property bool applying: false
     readonly property bool busy: generating || applying || outputSaveProcess.running || backendSaveProcess.running || (cacheProcess.running && cacheProcess.action === "clear")
     property var pendingSplitCommand: []
@@ -88,6 +95,11 @@ Item {
         workspace: root
         onChooseOutputFolderRequested: outputFolderDialog.open()
         onMonitorSetupRequested: root.monitorSetupRequested()
+    }
+
+    SavedWallpapersView {
+        id: savedWallpapersDialog
+        workspace: root
     }
 
     Component.onCompleted: {
@@ -117,6 +129,7 @@ Item {
     }
 
     function invalidateGenerated() {
+        appliedSavedSet = null
         generatedFile = ["", "", "", ""]
         generatedPair = ""
         processError = ""
@@ -229,6 +242,34 @@ Item {
         processError = ""
         statusMessage = "Saving Apply backend…"
         backendSaveProcess.running = true
+    }
+
+    // Display saved physical geometry even before an image has been selected.
+    function loadConfiguredPreview(text) {
+        let values = {}
+        for (let line of text.split("\n")) {
+            const separator = line.indexOf("=")
+            if (separator > 0)
+                values[line.substring(0, separator)] = line.substring(separator + 1)
+        }
+        let monitors = []
+        let layout = {}
+        for (let slot = 1; slot <= 3; ++slot) {
+            const prefix = "MONITOR_" + slot + "_"
+            if (values[prefix + "ENABLED"] !== "true")
+                continue
+            const output = values[prefix + "OUTPUT"]
+            const w = Number(values[prefix + "PHYSICAL_WIDTH_CM"])
+            const h = Number(values[prefix + "PHYSICAL_HEIGHT_CM"])
+            const x = Number(values[prefix + "X_CM"])
+            const y = Number(values[prefix + "Y_CM"])
+            if (!output || !(w > 0) || !(h > 0) || !isFinite(x) || !isFinite(y))
+                continue
+            monitors.push({slot: slot, output: output, url: ""})
+            layout[output] = {x: x, y: y, w: w, h: h}
+        }
+        configuredPreviewSet = {monitors: monitors}
+        configuredPreviewLayout = layout
     }
 
     function loadOutputDirectory() {
@@ -384,6 +425,8 @@ Item {
     }
 
     function generatedReady() {
+        if (appliedSavedSet)
+            return true
         if (activeSlots.length < 1)
             return false
         for (let slot of activeSlots) {
@@ -393,17 +436,41 @@ Item {
         return true
     }
 
+    function applySavedSet(set, layout, pairs) {
+        if (busy || !backendReady)
+            return
+        pendingSavedSet = set
+        pendingSavedLayout = layout
+        applyWallpaperPairs(pairs)
+    }
+
     function applyGenerated() {
+        if (appliedSavedSet) {
+            let pairs = []
+            for (let monitor of appliedSavedSet.monitors) {
+                pairs.push(monitor.output)
+                pairs.push(monitor.file)
+            }
+            applySavedSet(appliedSavedSet, savedSetLayout, pairs)
+            return
+        }
+        pendingSavedSet = null
         if (!generatedReady() || !backendReady)
             return
-        let a = [
-            scriptPath("apply-wallpapers.sh"),
-            "--backend", applyBackend
-        ]
+        let pairs = []
         for (let slot of activeSlots) {
-            a.push(outputName[slot])
-            a.push(generatedFile[slot])
+            pairs.push(outputName[slot])
+            pairs.push(generatedFile[slot])
         }
+        applyWallpaperPairs(pairs)
+    }
+
+    // Saved sets reuse Apply without changing the editing workspace or results.
+    function applyWallpaperPairs(pairs) {
+        if (busy || !backendReady || pairs.length < 2)
+            return
+        let a = [scriptPath("apply-wallpapers.sh"),
+                 "--backend", applyBackend].concat(pairs)
         applying = true
         processError = ""
         statusMessage = "Applying wallpapers…"
@@ -425,6 +492,7 @@ Item {
 
         stdout: StdioCollector {
             onStreamFinished: {
+                root.loadConfiguredPreview(text)
                 for (let line of text.split("\n")) {
                     if (line.startsWith("OUTPUT_DIR="))
                         root.outputDirectory = line.substring(11)
@@ -753,11 +821,17 @@ Item {
             root.applying = false
 
             if (exitCode === 0) {
+                if (root.pendingSavedSet) {
+                    root.appliedSavedSet = root.pendingSavedSet
+                    root.savedSetLayout = root.pendingSavedLayout
+                }
+                root.pendingSavedSet = null
                 root.processError = ""
                 root.statusMessage = "Wallpapers applied successfully."
                 return
             }
 
+            root.pendingSavedSet = null
             let detail = stderrText
             if (detail === "")
                 detail = stdoutText
@@ -801,7 +875,8 @@ Item {
                 }
                 Label {
                     Layout.fillWidth: true
-                    text: root.sourcePath === "" ? "No wallpaper selected" : root.sourcePath
+                    text: root.appliedSavedSet ? "Applied set: " + root.appliedSavedSet.name
+                        : root.sourcePath === "" ? "No wallpaper selected" : root.sourcePath
                     color: Theme.subtext
                     elide: Text.ElideMiddle
                 }
@@ -811,6 +886,11 @@ Item {
                 onClicked: settingsDialog.open()
                 ToolTip.visible: hovered
                 ToolTip.text: "Output folder, wallpaper backend, AI cache, and app information."
+            }
+            Button {
+                text: "Previous wallpapers"
+                enabled: root.outputDirectory !== ""
+                onClicked: savedWallpapersDialog.open()
             }
             Button {
                 text: "Choose Wallpaper"
@@ -863,7 +943,22 @@ Item {
             }
         }
 
+        SavedSetPreview {
+            visible: root.appliedSavedSet !== null || root.sourcePath === ""
+            wallpaperSet: root.appliedSavedSet || root.configuredPreviewSet
+            monitorLayout: root.appliedSavedSet ? root.savedSetLayout : root.configuredPreviewLayout
+            Layout.fillWidth: true
+            Layout.preferredHeight: 210
+        }
+
+        Button {
+            visible: root.appliedSavedSet !== null
+            text: "Return to editing"
+            onClicked: root.appliedSavedSet = null
+        }
+
         WorkspacePreview {
+            visible: root.appliedSavedSet === null && root.sourcePath !== ""
             workspace: root
             Layout.fillWidth: true
             Layout.preferredHeight: 210
@@ -871,6 +966,7 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
+            visible: root.appliedSavedSet === null
             spacing: 14
             Label { text: "Mode"; color: Theme.text; font.bold: true }
             HunuRadioButton {
@@ -938,12 +1034,14 @@ Item {
         }
 
         ImageQualityPanel {
+            visible: root.appliedSavedSet === null && root.sourcePath !== ""
             workspace: root
             Layout.fillWidth: true
             Layout.preferredHeight: 112
         }
 
         RowLayout {
+            visible: root.appliedSavedSet === null
             Layout.fillWidth: true
             Label {
                 text: "Wallpaper Position"
@@ -962,6 +1060,7 @@ Item {
         }
 
         RowLayout {
+            visible: root.appliedSavedSet === null
             Layout.fillWidth: true
             spacing: 12
             Repeater {
