@@ -14,7 +14,7 @@ BACKEND="$2"
 [[ -f "$CONFIG_PATH" ]] || die "Save monitor setup first."
 
 case "$BACKEND" in
-    serpantinum|hyprpaper|awww) ;;
+    serpantinum|hyprpaper|awww|noctalia) ;;
     *) die "Unsupported wallpaper backend: $BACKEND" ;;
 esac
 

@@ -15,7 +15,7 @@ Item {
     property string sourceUrl: ""
     property string outputDirectory: ""
     property string applyBackend: "serpantinum"
-    readonly property var applyBackendValues: ["serpantinum", "hyprpaper", "awww"]
+    readonly property var applyBackendValues: ["serpantinum", "hyprpaper", "awww", "noctalia"]
     property bool backendReady: false
     property string backendStatus: "Checking wallpaper backend…"
     property real cacheBytes: 0

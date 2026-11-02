@@ -7,13 +7,13 @@ die() {
 }
 
 [[ $# -ge 2 && "$1" == "--backend" ]] ||
-    die "Usage: $0 --backend serpantinum|hyprpaper|awww OUTPUT FILE ..."
+    die "Usage: $0 --backend serpantinum|hyprpaper|awww|noctalia OUTPUT FILE ..."
 
 BACKEND="$2"
 shift 2
 
 case "$BACKEND" in
-    serpantinum|hyprpaper|awww) ;;
+    serpantinum|hyprpaper|awww|noctalia) ;;
     *) die "Unsupported wallpaper backend: $BACKEND" ;;
 esac
 
@@ -40,6 +40,29 @@ done
 
 if [[ "$BACKEND" == "serpantinum" ]]; then
     exec "$SCRIPT_DIR/apply-serpantinum.sh" "${PAIRS[@]}"
+fi
+
+if [[ "$BACKEND" == "noctalia" ]]; then
+    command -v quickshell >/dev/null 2>&1 || die "Quickshell is not installed."
+    command -v timeout >/dev/null 2>&1 || die "timeout was not found."
+
+    set -- "${PAIRS[@]}"
+    while (( $# >= 2 )); do
+        output="$1"
+        # Noctalia expects the image path before the screen name. Resolve relative
+        # paths in Hunu's working directory, not in the running shell's directory.
+        file="$2"
+        [[ "$file" == /* ]] || file="$PWD/$file"
+        shift 2
+
+        if ! reply="$(timeout 10 quickshell -c noctalia-shell \
+            ipc call wallpaper set "$file" "$output" 2>&1)"; then
+            die "Noctalia Apply failed for $output: $reply"
+        fi
+    done
+
+    printf 'Wallpapers applied through Noctalia.\n'
+    exit 0
 fi
 
 if [[ "$BACKEND" == "awww" ]]; then

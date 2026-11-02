@@ -34,6 +34,22 @@ case "$BACKEND" in
             REASON="Serpantinum wallpaper endpoint was not found."
         fi
         ;;
+    noctalia)
+        if ! command -v quickshell >/dev/null 2>&1; then
+            REASON="Quickshell is not installed."
+        elif ! reply="$(timeout 3 quickshell -c noctalia-shell ipc show 2>/dev/null)"; then
+            REASON="Noctalia IPC is unavailable or timed out."
+        elif awk '
+            /^target / { wallpaper = ($2 == "wallpaper") }
+            wallpaper && /^[[:space:]]+function set\(/ { found = 1 }
+            END { exit !found }
+        ' <<< "$reply"; then
+            READY=true
+            REASON="Noctalia wallpaper IPC is ready."
+        else
+            REASON="Noctalia wallpaper endpoint was not found."
+        fi
+        ;;
     hyprpaper)
         if ! command -v hyprpaper >/dev/null 2>&1; then
             REASON="hyprpaper is not installed."

@@ -32,7 +32,7 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Settings dialog with General, AI Cache, and About pages
 - About shows app version, theme provider, and required-command availability
 - Monitor setup rejects duplicate output assignments and discards unsaved edits
-- Optional Apply through Serpantinum, hyprpaper, or awww
+- Optional Apply through Serpantinum, hyprpaper, awww, or Noctalia
 - Saved Apply backend selection with live IPC readiness checks
 - Optional Serpantinum/Matugen colors with a built-in fallback theme
 - XDG-aware installer
@@ -85,6 +85,7 @@ Optional:
   Serpantinum/Matugen color palette.
 - hyprpaper — optional wallpaper Apply backend for Hyprland.
 - awww — optional wallpaper Apply backend for compatible Wayland compositors.
+- Noctalia Shell — optional wallpaper Apply backend through Quickshell IPC.
 - Real-ESRGAN (`realesrgan-ncnn-vulkan`) — enables optional AI upscaling.
   Hunu works normally without it.
 
@@ -299,7 +300,7 @@ Configuration controls are locked while generating or applying wallpapers.
 **Cancel** remains available during generation. Generation jobs targeting the
 same output directory run sequentially to prevent output-set collisions.
 
-Choose **Serpantinum**, **hyprpaper**, or **awww** from **Apply using** in
+Choose **Serpantinum**, **hyprpaper**, **awww**, or **Noctalia** from **Apply using** in
 **Settings → General**.
 The selection is remembered across launches and monitor-setup saves.
 Existing configurations without a saved backend default to Serpantinum.
@@ -309,6 +310,7 @@ Existing configurations without a saved backend default to Serpantinum.
 | Serpantinum | Serpantinum's Quickshell wallpaper IPC |
 | hyprpaper | Per-output wallpaper commands through `hyprctl` |
 | awww | Per-output image commands through the awww client |
+| Noctalia | `quickshell -c noctalia-shell ipc call wallpaper set PATH OUTPUT` |
 
 Hunu checks the selected backend's IPC readiness while idle, approximately every
 five seconds. The workspace shows its readiness status. Apply is enabled when
@@ -343,6 +345,10 @@ composition.
 Applying through hyprpaper or awww sets the wallpapers without requesting
 Serpantinum/Matugen theme regeneration. Optional Serpantinum theme colors
 remain independent of the selected Apply backend.
+
+For Noctalia, run Noctalia Shell with its wallpaper service enabled. Hunu targets
+the `noctalia-shell` Quickshell configuration and sends each generated image to
+its assigned output using the `wallpaper set` IPC method.
 
 If no supported wallpaper backend is running, Hunu can still generate files
 for use with another wallpaper manager.
@@ -444,7 +450,7 @@ input and physical-preview components. Shared app metadata lives in
 ## Notes
 
 - Hunu Wallpaper Splitter currently targets **Hyprland + Quickshell**.
-- Apply supports Serpantinum, hyprpaper, and awww.
+- Apply supports Serpantinum, hyprpaper, awww, and Noctalia.
 - Broader Apply backend support does not change Hunu's current Hyprland monitor-detection requirement.
 - `config.conf` is trusted local Bash configuration and is sourced by the
   configuration helpers.

@@ -206,7 +206,7 @@ Dialog {
                 }
                 ComboBox {
                     Layout.preferredWidth: 190
-                    model: ["Serpantinum", "hyprpaper", "awww"]
+                    model: ["Serpantinum", "hyprpaper", "awww", "Noctalia"]
                     enabled: !dialog.workspace.busy
                     currentIndex: Math.max(0,
                         dialog.workspace.applyBackendValues.indexOf(

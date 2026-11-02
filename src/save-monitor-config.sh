@@ -73,7 +73,7 @@ if [[ -f "$CONFIG_PATH" ]]; then
 fi
 
 case "$SAVED_APPLY_BACKEND" in
-    serpantinum|hyprpaper|awww) ;;
+    serpantinum|hyprpaper|awww|noctalia) ;;
     *) SAVED_APPLY_BACKEND="serpantinum" ;;
 esac
 
