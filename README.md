@@ -8,6 +8,20 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.12.0
+
+- Added Noctalia Shell as an Apply backend in Settings → General.
+- Apply generated and saved wallpaper sets to their assigned outputs through
+  Noctalia wallpaper IPC.
+- Added live Noctalia endpoint checks, saved backend selection, and Apply error
+  reporting with a timeout.
+- Added six backend contract tests covering readiness, multi-output commands,
+  paths with spaces, validation, failures, and configuration persistence.
+
+Noctalia requires a running `noctalia-shell` Quickshell configuration with its
+wallpaper service enabled. Backend contract tests pass; live Noctalia desktop
+integration has not yet been validated.
+
 ## Preview
 
 ![Hunu Wallpaper Splitter wallpaper generation](assets/screenshots/wallpaper-generation.png)
