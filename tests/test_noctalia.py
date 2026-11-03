@@ -88,5 +88,34 @@ sys.exit(int(os.environ.get('IPC_EXIT', '0')))
         self.assertIn('MONITOR_1_OUTPUT=DP-1', config.read_text())
 
 
+class NativeNoctaliaTests(NoctaliaTests):
+    def setUp(self):
+        super().setUp()
+        # Both clients exist: the native executable must take precedence.
+        (self.path / 'noctalia').write_bytes((self.path / 'quickshell').read_bytes())
+        (self.path / 'noctalia').chmod(0o755)
+
+    def test_ready(self):
+        result = self.run_script('check-apply-backend.sh', 'noctalia')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('BACKEND_READY=true', result.stdout)
+        self.assertEqual(self.calls(), [['msg', 'wallpaper-get']])
+
+    def test_unavailable_and_missing_endpoint(self):
+        self.env['IPC_EXIT'] = '1'
+        result = self.run_script('check-apply-backend.sh', 'noctalia')
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('BACKEND_READY=false', result.stdout)
+        self.assertEqual(self.calls(), [['msg', 'wallpaper-get']])
+
+    def test_apply_multiple_outputs_and_relative_path(self):
+        result = self.run_script('apply-wallpapers.sh', '--backend', 'noctalia',
+                                 'DP-1', self.image.name, 'HDMI-A-1', self.image)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls(), [
+            ['msg', 'wallpaper-set', output, str(self.image)]
+            for output in ['DP-1', 'HDMI-A-1']])
+
+
 if __name__ == '__main__':
     unittest.main()

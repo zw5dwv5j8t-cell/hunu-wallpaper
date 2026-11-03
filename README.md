@@ -8,6 +8,13 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.12.1
+
+- Fixed Noctalia support for native installations using
+  `noctalia msg wallpaper-set OUTPUT PATH`.
+- Native readiness checks use the read-only `noctalia msg wallpaper-get` command.
+- Retained the Quickshell adapter for older installations without `noctalia`.
+
 ## Changes in v1.12.0
 
 - Added Noctalia Shell as an Apply backend in Settings → General.
@@ -324,7 +331,7 @@ Existing configurations without a saved backend default to Serpantinum.
 | Serpantinum | Serpantinum's Quickshell wallpaper IPC |
 | hyprpaper | Per-output wallpaper commands through `hyprctl` |
 | awww | Per-output image commands through the awww client |
-| Noctalia | `quickshell -c noctalia-shell ipc call wallpaper set PATH OUTPUT` |
+| Noctalia | `noctalia msg wallpaper-set OUTPUT PATH` (native), or Quickshell IPC (legacy) |
 
 Hunu checks the selected backend's IPC readiness while idle, approximately every
 five seconds. The workspace shows its readiness status. Apply is enabled when
@@ -360,9 +367,10 @@ Applying through hyprpaper or awww sets the wallpapers without requesting
 Serpantinum/Matugen theme regeneration. Optional Serpantinum theme colors
 remain independent of the selected Apply backend.
 
-For Noctalia, run Noctalia Shell with its wallpaper service enabled. Hunu targets
-the `noctalia-shell` Quickshell configuration and sends each generated image to
-its assigned output using the `wallpaper set` IPC method.
+For Noctalia, run Noctalia with its wallpaper service enabled. Hunu prefers the
+`noctalia msg` interface and sends each generated image to its assigned output.
+When the native executable is absent, Hunu uses the legacy `noctalia-shell`
+Quickshell configuration and its `wallpaper set` IPC method.
 
 If no supported wallpaper backend is running, Hunu can still generate files
 for use with another wallpaper manager.

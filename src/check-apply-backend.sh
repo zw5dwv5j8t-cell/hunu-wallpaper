@@ -35,7 +35,14 @@ case "$BACKEND" in
         fi
         ;;
     noctalia)
-        if ! command -v quickshell >/dev/null 2>&1; then
+        if command -v noctalia >/dev/null 2>&1; then
+            if timeout 3 noctalia msg wallpaper-get >/dev/null 2>&1; then
+                READY=true
+                REASON="Noctalia wallpaper IPC is ready."
+            else
+                REASON="Noctalia wallpaper IPC is unavailable or timed out."
+            fi
+        elif ! command -v quickshell >/dev/null 2>&1; then
             REASON="Quickshell is not installed."
         elif ! reply="$(timeout 3 quickshell -c noctalia-shell ipc show 2>/dev/null)"; then
             REASON="Noctalia IPC is unavailable or timed out."

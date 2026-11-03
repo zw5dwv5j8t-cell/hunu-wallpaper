@@ -43,20 +43,30 @@ if [[ "$BACKEND" == "serpantinum" ]]; then
 fi
 
 if [[ "$BACKEND" == "noctalia" ]]; then
-    command -v quickshell >/dev/null 2>&1 || die "Quickshell is not installed."
+    if command -v noctalia >/dev/null 2>&1; then
+        NOCTALIA_COMMAND=(noctalia msg wallpaper-set)
+        NOCTALIA_NATIVE=true
+    else
+        command -v quickshell >/dev/null 2>&1 || die "Noctalia or Quickshell is not installed."
+        NOCTALIA_COMMAND=(quickshell -c noctalia-shell ipc call wallpaper set)
+        NOCTALIA_NATIVE=false
+    fi
     command -v timeout >/dev/null 2>&1 || die "timeout was not found."
 
     set -- "${PAIRS[@]}"
     while (( $# >= 2 )); do
         output="$1"
-        # Noctalia expects the image path before the screen name. Resolve relative
-        # paths in Hunu's working directory, not in the running shell's directory.
+        # Resolve relative paths in Hunu's working directory.
         file="$2"
         [[ "$file" == /* ]] || file="$PWD/$file"
         shift 2
 
-        if ! reply="$(timeout 10 quickshell -c noctalia-shell \
-            ipc call wallpaper set "$file" "$output" 2>&1)"; then
+        if [[ "$NOCTALIA_NATIVE" == true ]]; then
+            arguments=("$output" "$file")
+        else
+            arguments=("$file" "$output")
+        fi
+        if ! reply="$(timeout 10 "${NOCTALIA_COMMAND[@]}" "${arguments[@]}" 2>&1)"; then
             die "Noctalia Apply failed for $output: $reply"
         fi
     done
