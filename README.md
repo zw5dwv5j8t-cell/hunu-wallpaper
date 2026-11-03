@@ -8,6 +8,12 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.12.3
+
+- Handle the main window's close signal directly so compositor close shortcuts
+  such as Hyprland's Super+Q quit Hunu without depending on the global
+  last-window notification. Live confirmation of this fix is pending.
+
 ## Changes in v1.12.2
 
 - Closing the last Hunu window now quits the application instead of leaving an

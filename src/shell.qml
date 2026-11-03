@@ -38,12 +38,10 @@ FloatingWindow {
         appPage = 1
     }
 
-    // Quickshell is normally a persistent shell. Hunu is a windowed app:
-    // closing its last window must also stop its processes and idle timers.
-    Connections {
-        target: Quickshell
-        function onLastWindowClosed() { Qt.quit() }
-    }
+    // Handle the main window's compositor/user close directly. Quickshell's
+    // global lastWindowClosed notification is not reliable for every close path.
+    // This signal does not fire when a dialog closes or the window is minimized.
+    onClosed: Qt.quit()
 
     Component.onCompleted: checkConfig()
 
