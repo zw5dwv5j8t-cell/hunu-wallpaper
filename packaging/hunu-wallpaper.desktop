@@ -2,7 +2,7 @@
 Type=Application
 Name=Hunu Wallpaper Splitter
 Comment=Create coordinated wallpapers for multi-monitor Hyprland setups
-Exec=quickshell -p %h/.config/hunu-wallpaper
+Exec=quickshell --no-duplicate -p %h/.config/hunu-wallpaper
 Icon=hunu-wallpaper
 Terminal=false
 Categories=Graphics;Utility;

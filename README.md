@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.12.2
+
+- Closing the last Hunu window now quits the application instead of leaving an
+  invisible Quickshell process running.
+- Desktop and manual launches use a per-installation lock and Quickshell's
+  duplicate-instance check. Repeated launches exit while Hunu is running;
+  separate named test installations remain independent.
+- Already-running instances from older versions must be closed once after updating.
+
 ## Changes in v1.12.1
 
 - Fixed Noctalia support for native installations using
@@ -380,7 +389,7 @@ for use with another wallpaper manager.
 With the default installation:
 
 ```bash
-env QT_QPA_PLATFORMTHEME=xdgdesktopportal quickshell -p ~/.config/hunu-wallpaper
+"${XDG_CONFIG_HOME:-$HOME/.config}/hunu-wallpaper/launch.sh"
 ```
 
 If `XDG_CONFIG_HOME` or `HUNU_APP_NAME` was customized, use the corresponding

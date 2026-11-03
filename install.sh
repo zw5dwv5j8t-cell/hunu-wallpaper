@@ -87,6 +87,7 @@ fi
 # ---------------------------------------------------------------------------
 
 required_files=(
+    "src/launch.sh"
     "src/shell.qml"
     "src/SetupView.qml"
     "src/WorkspaceView.qml"
@@ -180,6 +181,7 @@ fi
 # ---------------------------------------------------------------------------
 
 app_files=(
+    "launch.sh"
     "shell.qml"
     "SetupView.qml"
     "WorkspaceView.qml"
@@ -226,6 +228,7 @@ for file in "${app_files[@]}"; do
 done
 
 chmod +x \
+    "$CONFIG_DIR/launch.sh" \
     "$CONFIG_DIR/split-wallpaper.sh" \
     "$CONFIG_DIR/detect-monitors.sh" \
     "$CONFIG_DIR/save-monitor-config.sh" \
@@ -281,7 +284,7 @@ desktop_exec_argument() {
     desktop_value "\"$value\""
 }
 
-EXEC_CONFIG_DIR="$(desktop_exec_argument "$CONFIG_DIR")"
+EXEC_LAUNCHER="$(desktop_exec_argument "$CONFIG_DIR/launch.sh")"
 DESKTOP_ICON="$(desktop_value "$ICON_FILE")"
 
 cat > "$DESKTOP_FILE" <<EOF
@@ -289,7 +292,7 @@ cat > "$DESKTOP_FILE" <<EOF
 Type=Application
 Name=$DISPLAY_NAME
 Comment=Create coordinated wallpapers for 1–3 physical monitors
-Exec=env QT_QPA_PLATFORMTHEME=xdgdesktopportal quickshell -p $EXEC_CONFIG_DIR
+Exec=$EXEC_LAUNCHER
 Icon=$DESKTOP_ICON
 Terminal=false
 Categories=Graphics;Utility;
@@ -318,7 +321,7 @@ printf 'Icon:\n'
 printf '  %s\n\n' "$ICON_FILE"
 
 printf 'Launch manually with:\n'
-printf '  env QT_QPA_PLATFORMTHEME=xdgdesktopportal quickshell -p %q\n\n' "$CONFIG_DIR"
+printf '  %q\n\n' "$CONFIG_DIR/launch.sh"
 
 printf 'Optional wallpaper backends:\n'
 
