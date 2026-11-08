@@ -130,6 +130,70 @@ class PickerInteractionTests(unittest.TestCase):
 
             from PySide6.QtGui import QColor
             assert_clipped(QColor(Qt.GlobalColor.darkBlue))
+            # Hold a real asynchronous image request open. All three outgoing
+            # previews must stay visible, including their original geometry.
+            import http.server
+            import threading
+            import time
+            release = threading.Event()
+            requested = threading.Event()
+            replacement_image = QImage(400, 200, QImage.Format_RGB32)
+            replacement_image.fill(Qt.GlobalColor.darkGreen)
+            self.assertTrue(replacement_image.save(str(base / 'delayed.png')))
+            replacement_bytes = (base / 'delayed.png').read_bytes()
+
+            class DelayedImage(http.server.BaseHTTPRequestHandler):
+                def do_GET(handler):
+                    requested.set()
+                    release.wait(5)
+                    handler.send_response(200)
+                    handler.send_header('Content-Type', 'image/png')
+                    handler.send_header('Content-Length', str(len(replacement_bytes)))
+                    handler.end_headers()
+                    handler.wfile.write(replacement_bytes)
+
+                def log_message(handler, *args):
+                    pass
+
+            server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), DelayedImage)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+
+            def stop_server():
+                release.set()
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+            self.addCleanup(stop_server)
+            delayed_sets = [dict(item, previewUrl=f'http://127.0.0.1:{server.server_port}/delayed.png') for item in sets]
+            old_size = (frame.width(), frame.height())
+            root.setProperty('sets', delayed_sets)
+            deadline = time.monotonic() + 3
+            while not requested.is_set() and time.monotonic() < deadline:
+                QTest.qWait(20)
+            self.assertTrue(requested.is_set())
+            QTest.qWait(60)
+            self.assertEqual((frame.width(), frame.height()), old_size)
+            assert_clipped(QColor(Qt.GlobalColor.darkBlue))
+            pending_screenshot = root.grabWindow()
+            for side in [previous, following]:
+                side_frame = find_visual(side, 'roundedImageFrame')
+                self.assertGreater(side_frame.width(), 0)
+                middle = side_frame.mapToScene(QPointF(side_frame.width()/2, side_frame.height()/2))
+                pixel = pending_screenshot.pixelColor(round(middle.x()), round(middle.y()))
+                self.assertGreater(pixel.alpha(), 100, 'Side preview must remain visible while loading')
+                self.assertGreater(pixel.blue(), pixel.green())
+            release.set()
+            canvas = find_visual(current, 'roundedImageCanvas')
+            deadline = time.monotonic() + 3
+            while canvas.property('displayedUrl').toString() != delayed_sets[0]['previewUrl'] and time.monotonic() < deadline:
+                QTest.qWait(10)
+                time.sleep(0.005)  # Let the Python HTTP server reply while pumping Qt.
+            QTest.qWait(220)
+            assert_clipped(QColor(Qt.GlobalColor.darkGreen))
+            root.setProperty('sets', sets)
+            QTest.qWait(300)
+            assert_clipped(QColor(Qt.GlobalColor.darkBlue))
             portrait = QImage(200, 400, QImage.Format_RGB32)
             portrait.fill(Qt.GlobalColor.darkGreen)
             self.assertTrue(portrait.save(str(base / 'portrait.png')))

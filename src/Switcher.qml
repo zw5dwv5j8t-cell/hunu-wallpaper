@@ -351,7 +351,7 @@ PanelWindow {
         property int slideDirection: 1
         property string failedUrl: ""
         property bool hasDrawn: false
-        readonly property real aspectRatio: photo.implicitWidth / Math.max(1, photo.implicitHeight)
+        readonly property real aspectRatio: paintedImage.displayedRatio
         onHighlightedChanged: paintedImage.requestPaint()
         onShadowEnabledChanged: paintedImage.requestPaint()
 
@@ -373,7 +373,7 @@ PanelWindow {
             property real slideOffset: 0
             anchors.centerIn: parent
             anchors.horizontalCenterOffset: slideOffset
-            width: photo.status === Image.Ready
+            width: paintedImage.displayedUrl.toString() !== ""
                 ? Math.min(preview.width, preview.height * preview.aspectRatio) : 0
             height: width / Math.max(0.001, preview.aspectRatio)
             readonly property real cornerRadius: Math.min(22, width / 10, height / 10)
@@ -391,7 +391,10 @@ PanelWindow {
                 readonly property int padding: 24
                 property url imageUrl: photo.status === Image.Ready ? photo.source : ""
                 property url loadedUrl: ""
-                property url readyUrl: ""
+                property url displayedUrl: ""
+                property real displayedRatio: 1
+                property real pendingRatio: 1
+                property bool animationPending: false
                 x: -padding
                 y: -padding
                 width: imageFrame.width + padding * 2
@@ -400,38 +403,55 @@ PanelWindow {
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
                 function imageReady() {
-                    if (!isImageLoaded(imageUrl))
+                    if (imageUrl.toString() === "" || !isImageLoaded(imageUrl))
                         return
+                    if (displayedUrl.toString() === imageUrl.toString()) {
+                        requestPaint()
+                        return
+                    }
+                    const oldUrl = displayedUrl
+                    displayedRatio = pendingRatio
+                    displayedUrl = imageUrl
+                    animationPending = preview.animateChanges && preview.hasDrawn
                     requestPaint()
-                    if (readyUrl.toString() === imageUrl.toString())
+                    // Keep the outgoing pixels/cache alive until a decoded
+                    // replacement exists. Never clear the visible frame to load.
+                    if (oldUrl.toString() !== "" && oldUrl.toString() !== imageUrl.toString())
+                        unloadImage(oldUrl)
+                }
+                function reload() {
+                    if (loadedUrl.toString() !== "" && loadedUrl.toString() !== displayedUrl.toString()
+                            && loadedUrl.toString() !== imageUrl.toString())
+                        unloadImage(loadedUrl)
+                    loadedUrl = imageUrl
+                    if (imageUrl.toString() !== "") {
+                        pendingRatio = photo.implicitWidth / Math.max(1, photo.implicitHeight)
+                        loadImage(imageUrl, preview.sourceSize)
+                        if (isImageLoaded(imageUrl))
+                            imageReady()
+                    }
+                }
+                onImageUrlChanged: reload()
+                onImageLoaded: imageReady()
+                onPainted: {
+                    if (displayedUrl.toString() === "")
                         return
-                    readyUrl = imageUrl
-                    if (preview.animateChanges && preview.hasDrawn) {
+                    // Start motion only once the replacement is actually painted;
+                    // decoding/upload time must not consume the animation.
+                    if (animationPending) {
+                        animationPending = false
                         slide.stop()
                         imageFrame.slideOffset = preview.slideDirection * 24
                         slide.start()
                     }
                     preview.hasDrawn = true
                 }
-                function reload() {
-                    if (loadedUrl.toString() !== "" && loadedUrl.toString() !== imageUrl.toString())
-                        unloadImage(loadedUrl)
-                    loadedUrl = imageUrl
-                    if (imageUrl.toString() !== "") {
-                        loadImage(imageUrl, preview.sourceSize)
-                        if (isImageLoaded(imageUrl))
-                            imageReady()
-                    }
-                    requestPaint()
-                }
-                onImageUrlChanged: reload()
-                onImageLoaded: imageReady()
                 Component.onCompleted: reload()
                 onPaint: {
                     const ctx = getContext("2d")
                     ctx.reset()
                     ctx.clearRect(0, 0, width, height)
-                    if (!isImageLoaded(imageUrl) || imageFrame.width <= 0 || imageFrame.height <= 0)
+                    if (!isImageLoaded(displayedUrl) || imageFrame.width <= 0 || imageFrame.height <= 0)
                         return
                     const w = imageFrame.width
                     const h = imageFrame.height
@@ -463,7 +483,7 @@ PanelWindow {
                     ctx.save()
                     roundedPath(padding, padding, w, h, r)
                     ctx.clip()
-                    ctx.drawImage(imageUrl, padding, padding, w, h)
+                    ctx.drawImage(displayedUrl, padding, padding, w, h)
                     ctx.restore()
                     const line = preview.highlighted ? 2 : 1
                     roundedPath(padding + line / 2, padding + line / 2,

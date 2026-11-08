@@ -8,6 +8,13 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.15.3
+
+- Keep all outgoing preview images and frame dimensions visible while replacements
+  decode, instead of collapsing/clearing them during asynchronous loading.
+- Start the slide after the new image has actually painted, so image loading does
+  not consume the animation. Interrupted loads keep the last usable image.
+
 ## Changes in v1.15.2
 
 - Fix square image corners extending outside the rounded border: image clipping
