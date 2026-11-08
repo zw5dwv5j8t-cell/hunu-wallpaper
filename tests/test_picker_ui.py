@@ -18,7 +18,7 @@ class PickerInteractionTests(unittest.TestCase):
         os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
         os.environ.setdefault('QT_QUICK_BACKEND', 'software')
         from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl, Qt, QPointF
-        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtGui import QGuiApplication, QImage
         from PySide6.QtQuick import QQuickWindow  # Registers the Python window wrapper.
         from PySide6.QtQml import QQmlApplicationEngine, QJSValue, qmlRegisterType
         from PySide6.QtTest import QTest
@@ -81,7 +81,11 @@ class PickerInteractionTests(unittest.TestCase):
                 result = js.property('receive').callWithInstance(js, [QJSValue(json.dumps(payload))])
                 self.assertFalse(result.isError(), result.toString())
 
-            sets = [dict(name=n, title=n, previewUrl='', fallbackPreviewUrl='', previewIsSource=True)
+            fixture = QImage(400, 200, QImage.Format_RGB32)
+            fixture.fill(Qt.GlobalColor.darkBlue)
+            self.assertTrue(fixture.save(str(base / 'preview.png')))
+            image_url = (base / 'preview.png').as_uri()
+            sets = [dict(name=n, title=n, previewUrl=image_url, fallbackPreviewUrl=image_url, previewIsSource=True)
                     for n in ['First', 'Second', 'Third']]
             receive(dict(event='ready', sets=sets, layout={}, hidden=0, backend='noctalia', liveEnabled=True,
                          liveReason='', focusedOutput='', current='First'))
@@ -104,6 +108,26 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertEqual(previous.property('neighborIndex'), 2, 'Previous must wrap at the first set')
             self.assertEqual(following.property('neighborIndex'), 1)
             self.assertGreater(current.property('width'), following.property('width'))
+            frame = find_visual(current, 'roundedImageFrame')
+            mask = find_visual(current, 'roundedImageMask')
+            self.assertGreater(frame.width(), 0)
+            self.assertAlmostEqual(frame.width() / frame.height(), 2)
+            self.assertLessEqual(frame.width(), current.width())
+            self.assertLessEqual(frame.height(), current.height())
+            self.assertGreater(mask.property('radius'), 0)
+            portrait = QImage(200, 400, QImage.Format_RGB32)
+            portrait.fill(Qt.GlobalColor.darkGreen)
+            self.assertTrue(portrait.save(str(base / 'portrait.png')))
+            portrait_sets = [dict(s) for s in sets]
+            portrait_sets[0]['previewUrl'] = (base / 'portrait.png').as_uri()
+            root.setProperty('sets', portrait_sets)
+            QTest.qWait(100)
+            self.assertAlmostEqual(frame.width() / frame.height(), 0.5)
+            self.assertLessEqual(frame.width(), current.width())
+            self.assertLessEqual(frame.height(), current.height())
+            root.setProperty('sets', sets)
+            QTest.qWait(100)
+
             content = find_visual(root.contentItem(), 'switcherContent')
             center_y = content.y()
             root.setProperty('verticalPosition', 'top')

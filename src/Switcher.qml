@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -231,23 +232,14 @@ PanelWindow {
                             height: carousel.height * 0.65
                             anchors.verticalCenter: parent.verticalCenter
                             x: modelData < 0 ? 0 : carousel.width - width
-                            Image {
-                                id: neighborImage
+                            RoundedPreview {
                                 anchors.fill: parent
-                                property string failedUrl: ""
-                                source: neighbor.wallpaperSet
-                                    ? (failedUrl === neighbor.wallpaperSet.previewUrl
-                                        ? neighbor.wallpaperSet.fallbackPreviewUrl : neighbor.wallpaperSet.previewUrl) : ""
-                                sourceSize.width: 600
-                                sourceSize.height: 400
-                                fillMode: Image.PreserveAspectFit
-                                asynchronous: true
-                                opacity: neighborMouse.containsMouse ? 0.85 : 0.55
+                                source: neighbor.wallpaperSet ? neighbor.wallpaperSet.previewUrl : ""
+                                fallbackSource: neighbor.wallpaperSet ? neighbor.wallpaperSet.fallbackPreviewUrl : ""
+                                sourceSize: Qt.size(600, 400)
+                                highlighted: neighborMouse.containsMouse
+                                opacity: neighborMouse.containsMouse ? 0.9 : 0.65
                                 Behavior on opacity { NumberAnimation { duration: 120 } }
-                                onStatusChanged: {
-                                    if (status === Image.Error && neighbor.wallpaperSet)
-                                        failedUrl = neighbor.wallpaperSet.previewUrl
-                                }
                             }
                             MouseArea {
                                 id: neighborMouse
@@ -262,7 +254,7 @@ PanelWindow {
                             }
                         }
                     }
-                    Image {
+                    RoundedPreview {
                         id: fullPreview
                         objectName: "currentPreview"
                         Accessible.name: picker.selectedSet ? picker.selectedSet.title : "Wallpaper preview"
@@ -271,18 +263,10 @@ PanelWindow {
                         anchors.centerIn: parent
                         width: carousel.hasNeighbors ? carousel.width * 0.62 : carousel.width
                         height: carousel.height
-                        property string failedUrl: ""
-                        source: picker.selectedSet
-                            ? (failedUrl === picker.selectedSet.previewUrl
-                                ? picker.selectedSet.fallbackPreviewUrl : picker.selectedSet.previewUrl) : ""
-                        sourceSize.width: 1600
-                        sourceSize.height: 1000
-                        fillMode: Image.PreserveAspectFit
-                        asynchronous: true
-                        onStatusChanged: {
-                            if (status === Image.Error && picker.selectedSet)
-                                failedUrl = picker.selectedSet.previewUrl
-                        }
+                        source: picker.selectedSet ? picker.selectedSet.previewUrl : ""
+                        fallbackSource: picker.selectedSet ? picker.selectedSet.fallbackPreviewUrl : ""
+                        sourceSize: Qt.size(1600, 1000)
+                        highlighted: true
                     }
                 }
                 Item {
@@ -346,6 +330,69 @@ PanelWindow {
                         onClicked: picker.cancel()
                     }
                 }
+            }
+        }
+    }
+
+    // Fit the frame to the image itself, not its letterboxed layout area.
+    component RoundedPreview: Item {
+        id: preview
+        property url source: ""
+        property url fallbackSource: ""
+        property size sourceSize: Qt.size(1600, 1000)
+        property bool highlighted: false
+        property string failedUrl: ""
+        readonly property real aspectRatio: photo.implicitWidth / Math.max(1, photo.implicitHeight)
+
+        Item {
+            id: imageFrame
+            objectName: "roundedImageFrame"
+            anchors.centerIn: parent
+            width: photo.status === Image.Ready
+                ? Math.min(preview.width, preview.height * preview.aspectRatio) : 0
+            height: width / Math.max(0.001, preview.aspectRatio)
+            readonly property real cornerRadius: Math.min(22, width / 10, height / 10)
+            Rectangle {
+                id: roundedMask
+                objectName: "roundedImageMask"
+                anchors.fill: parent
+                radius: imageFrame.cornerRadius
+                color: "white"
+                visible: false
+                layer.enabled: true
+            }
+            Image {
+                id: photo
+                anchors.fill: parent
+                source: preview.failedUrl === preview.source.toString() ? preview.fallbackSource : preview.source
+                sourceSize: preview.sourceSize
+                asynchronous: true
+                fillMode: Image.PreserveAspectFit
+                // Shader effects require the normal GPU scene graph. Keep the
+                // image visible if Qt falls back to the software renderer.
+                layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
+                layer.effect: MultiEffect {
+                    maskEnabled: true
+                    maskSource: roundedMask
+                    shadowEnabled: true
+                    shadowColor: "black"
+                    shadowOpacity: preview.highlighted ? 0.35 : 0.2
+                    shadowBlur: 0.45
+                    shadowVerticalOffset: 6
+                }
+                onStatusChanged: {
+                    if (status === Image.Error)
+                        preview.failedUrl = preview.source.toString()
+                }
+            }
+            Rectangle {
+                anchors.fill: parent
+                radius: imageFrame.cornerRadius
+                color: "transparent"
+                border.width: preview.highlighted ? 2 : 1
+                border.color: preview.highlighted ? "#b3ffffff" : "#55ffffff"
+                visible: photo.status === Image.Ready
+                Behavior on border.color { ColorAnimation { duration: 120 } }
             }
         }
     }

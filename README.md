@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.15.1
+
+- Round the actual image edges in all three carousel previews, including portrait
+  sources, without cropping the image or framing its transparent letterbox area.
+- Add subtle borders and soft shadows; highlight the selected preview and brighten
+  neighboring previews on hover. The surrounding overlay stays transparent.
+  Rounded masking and shadows use Qt Quick's GPU effects; software rendering
+  falls back to plain images with borders.
+
 ## Changes in v1.15.0
 
 - Add Settings → Switcher with enable/disable, top/center/bottom position,
