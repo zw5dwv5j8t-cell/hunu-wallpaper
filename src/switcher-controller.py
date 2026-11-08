@@ -117,7 +117,7 @@ def listing():
                     {row['output']: str(Path(row['file']).resolve()) for row in item['monitors']} == last), '')
     return {'sets': sets, 'layout': layout, 'current': current,
             'hidden': len(all_sets) - len(sets), 'backend': values['APPLY_BACKEND'],
-            'focusedOutput': focused}
+            'focusedOutput': focused, 'outputDirectory': str(Path(values['OUTPUT_DIR']).expanduser().resolve())}
 
 
 def apply(item, backend):
@@ -137,9 +137,13 @@ class PreviewSession:
         self.original = {}
         self.dirty = False
         self.committed = False
+        self.names = set()
+        self.directory = None
 
     def capture(self, result):
         self.backend = result['backend']
+        self.names = {item['name'] for item in result['sets']}
+        self.directory = Path(result['outputDirectory'])
         if self.backend != 'noctalia' or not shutil.which('noctalia'):
             return False, 'Live preview needs a backend with readable current wallpapers; Enter still applies.'
         try:
@@ -163,10 +167,19 @@ class PreviewSession:
             raise ValueError(result.stderr.strip() or 'Wallpaper Apply failed.')
 
     def select(self, name, commit=False):
-        result = listing()
-        if result['backend'] != self.backend:
+        # Revalidate only the selected set, not every image in the library.
+        # Names must come from the initial listing, never an arbitrary path.
+        _, values = configuration()
+        if values['APPLY_BACKEND'] != self.backend:
             raise ValueError('Apply backend changed. Cancel and reopen the picker.')
-        item = next((s for s in result['sets'] if s['name'] == name), None)
+        if Path(values['OUTPUT_DIR']).expanduser().resolve() != self.directory:
+            raise ValueError('Wallpaper folder changed. Cancel and reopen the picker.')
+        monitors, _ = active_monitors()
+        configured = {values[f'MONITOR_{i}_OUTPUT'] for i in (1, 2, 3)
+                      if values.get(f'MONITOR_{i}_ENABLED') == 'true'}
+        if configured != set(monitors):
+            raise ValueError('Active outputs differ from Monitor Setup.')
+        item = next((s for s in saved_sets.scan(self.directory, name) if compatible(s, monitors)), None) if name in self.names else None
         if item is None:
             raise ValueError('This set no longer matches the active layout.')
         pairs = [value for row in item['monitors'] for value in (row['output'], row['file'])]

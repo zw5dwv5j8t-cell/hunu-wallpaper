@@ -7,12 +7,14 @@ import subprocess
 import sys
 
 
-def scan(directory):
+def scan(directory, selected_name=None):
     folder = Path(directory).expanduser().resolve()
     if not folder.exists():
         return []
     groups = {}
-    for image in folder.glob('*.png'):
+    candidates = (folder.glob('*.png') if selected_name is None else
+                  (folder / f'{selected_name}_{suffix}.png' for suffix in 'abc'))
+    for image in candidates:
         match = re.fullmatch(r'(.+)_([abc])\.png', image.name)
         if match and image.is_file():
             groups.setdefault(match[1], {})[match[2]] = image

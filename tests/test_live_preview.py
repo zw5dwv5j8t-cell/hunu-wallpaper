@@ -138,6 +138,19 @@ elif args[1]=='wallpaper-set':
         self.assertEqual(process.wait(timeout=5), 0)
         self.assertEqual(json.loads(self.memory()), self.current())
 
+    def test_targeted_revalidation_rejects_missing_crop_and_changed_metadata(self):
+        process, _ = self.start_session()
+        (self.output / 'first_a.png').unlink()
+        self.assertEqual(self.send(process, 'preview', 'first')['event'], 'error')
+        manifest = self.output / 'second.hunu.json'
+        data = json.loads(manifest.read_text())
+        data['monitors'][0]['output'] = 'DISCONNECTED'
+        manifest.write_text(json.dumps(data))
+        self.assertEqual(self.send(process, 'preview', 'second')['event'], 'error')
+        self.assertEqual(self.current(), self.original)
+        self.assertEqual(self.send(process, 'cancel')['event'], 'cancelled')
+        self.assertEqual(process.wait(timeout=5), 0)
+
     def test_preview_lock_blocks_other_apply_and_layout_is_rechecked(self):
         process, _ = self.start_session()
         other = self.run_controller('apply', 'first')

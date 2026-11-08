@@ -8,6 +8,14 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.14.1
+
+- Wait for 400 ms of quiet navigation before sending a desktop preview. New
+  selections replace the pending one; completing an older request cannot bypass
+  the quiet period. Enter and Escape still take priority.
+- Revalidate only the selected set during preview, avoiding a full-library rescan.
+- Noctalia may still finish a transition already accepted; Hunu cannot retract it.
+
 ## Changes in v1.14.0
 
 - Center switcher titles, captions, status text, and navigation controls.
@@ -446,8 +454,8 @@ It does not start Noctalia or any other wallpaper service.
 
 - Left/Right, Tab/Shift+Tab, the arrow buttons, or clicking a thumbnail selects a set.
 - Repeating the hotkey advances the existing picker instead of opening another.
-- With native Noctalia, selection changes preview the set on the desktop after a
-  short debounce. Enter keeps the selection, remembers it, and closes the picker.
+- With native Noctalia, selection changes preview the set on the desktop after
+  400 ms without another selection change. Enter keeps the selection, remembers it, and closes the picker.
 - Escape or clicking outside restores the wallpapers captured on opening, then
   closes. This also works when those wallpapers were set outside Hunu.
 - Navigation can continue while an Apply is running; only the latest pending set

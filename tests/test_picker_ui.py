@@ -88,12 +88,23 @@ class PickerInteractionTests(unittest.TestCase):
             root.requestActivate()
             QTest.qWait(100)
             QTest.keyClick(root, Qt.Key_Right)
-            QTest.qWait(200)
+            QTest.qWait(450)
             self.assertEqual(writes, [dict(action='preview', name='Second')])
+            # Finishing an old request must not bypass the quiet period for a
+            # newer selection. Rapid choices replace each other, not queue up.
+            QTest.keyClick(root, Qt.Key_Right)  # Third, while Second is in flight.
+            QTest.qWait(200)
+            receive(dict(event='previewed', name='Second'))
+            self.assertEqual(len(writes), 1)
+            QTest.keyClick(root, Qt.Key_Right)  # First supersedes Third.
+            QTest.qWait(450)
+            self.assertEqual(writes[-1], dict(action='preview', name='First'))
+            self.assertEqual(len(writes), 2, 'Intermediate Third must never be sent')
+            QTest.keyClick(root, Qt.Key_Right)
             QTest.keyClick(root, Qt.Key_Right)
             QTest.keyClick(root, Qt.Key_Return)
-            self.assertEqual(len(writes), 1, 'Enter must wait for the current Apply')
-            receive(dict(event='previewed', name='Second'))
+            self.assertEqual(len(writes), 2, 'Enter must wait for the current Apply')
+            receive(dict(event='previewed', name='First'))
             self.assertEqual(writes[-1], dict(action='commit', name='Third'))
             # Independently verify that Escape waits for a restoration reply.
             root.setProperty('intent', '')

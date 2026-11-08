@@ -52,6 +52,10 @@ PanelWindow {
         let action = intent
         let name = selectedSet ? selectedSet.name : ""
         if (action === "") {
+            // Never send while the user is still cycling, even if the previous
+            // backend request has just completed.
+            if (debounce.running)
+                return
             if (!liveEnabled || queuedName === "" || queuedName === previewedName) {
                 queuedName = ""
                 return
@@ -125,15 +129,15 @@ PanelWindow {
         }
         if (intent !== "")
             dispatch()
-        else if (queuedName !== "")
-            debounce.restart()
+        else if (queuedName !== "" && !debounce.running)
+            dispatch()
     }
     onClosed: cancel()
     Component.onCompleted: {
         sessionProcess.command = ["python3", helper("switcher-controller.py"), "session"]
         sessionProcess.running = true
     }
-    Timer { id: debounce; interval: 160; onTriggered: picker.dispatch() }
+    Timer { id: debounce; interval: 400; onTriggered: picker.dispatch() }
     IpcHandler {
         target: "picker"
         function next(): void { picker.move(1) }
