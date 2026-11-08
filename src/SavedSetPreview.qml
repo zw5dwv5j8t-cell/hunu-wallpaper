@@ -4,6 +4,9 @@ import QtQuick.Controls
 Item {
     id: preview
     required property var wallpaperSet
+    property bool showLabels: true
+    property int decodeWidth: 600
+    property int decodeHeight: 400
     required property var monitorLayout
 property var rectangles: {
     if (!preview.wallpaperSet)
@@ -43,12 +46,13 @@ Repeater {
             anchors.fill: parent
             anchors.margins: 1
             source: modelData.image
-            sourceSize.width: 600
-            sourceSize.height: 400
+            sourceSize.width: preview.decodeWidth
+            sourceSize.height: preview.decodeHeight
             fillMode: Image.Stretch
             asynchronous: true
         }
         Label {
+            visible: preview.showLabels
             anchors.left: parent.left
             anchors.bottom: parent.bottom
             text: "Monitor " + modelData.slot

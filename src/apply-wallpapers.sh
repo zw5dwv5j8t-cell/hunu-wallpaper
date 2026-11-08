@@ -22,6 +22,20 @@ esac
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PAIRS=("$@")
+source "$SCRIPT_DIR/cache-path.sh"
+APPLY_CACHE="$(hunu_cache_directory)"
+mkdir -p -- "$APPLY_CACHE"
+exec 8>"$APPLY_CACHE/wallpaper-apply.lock"
+flock -n 8 || die "Another wallpaper Apply is in progress. Try again."
+
+record_success() {
+    local status=$?
+    if (( status == 0 )); then
+        python3 "$SCRIPT_DIR/switcher-controller.py" record "${PAIRS[@]}" ||
+            printf 'Warning: Could not remember the applied set.\n' >&2
+    fi
+}
+trap record_success EXIT
 
 # Validate every pair before changing any wallpaper.
 while (( $# >= 2 )); do
@@ -39,7 +53,8 @@ while (( $# >= 2 )); do
 done
 
 if [[ "$BACKEND" == "serpantinum" ]]; then
-    exec "$SCRIPT_DIR/apply-serpantinum.sh" "${PAIRS[@]}"
+    "$SCRIPT_DIR/apply-serpantinum.sh" "${PAIRS[@]}"
+    exit 0
 fi
 
 if [[ "$BACKEND" == "noctalia" ]]; then

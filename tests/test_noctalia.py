@@ -26,7 +26,7 @@ sys.exit(int(os.environ.get('IPC_EXIT', '0')))
 ''')
         client.chmod(0o755)
         self.env = dict(os.environ, PATH=f'{self.path}:{os.environ["PATH"]}',
-                        IPC_LOG=str(self.log))
+                        IPC_LOG=str(self.log), XDG_CACHE_HOME=str(self.path / "cache"))
         self.image = self.path / 'wall paper, special.png'
         self.image.touch()
 

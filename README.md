@@ -8,6 +8,17 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.13.0
+
+- Added a separate visual saved-wallpaper switcher, launched on demand without
+  loading the full editor or leaving a background service running.
+- Preview complete monitor compositions with Left/Right, confirm with Enter,
+  and cancel with Escape. Repeating the hotkey advances the existing picker.
+- Filter sets by exact active output assignments and crop pixel dimensions,
+  including rotation; recheck compatibility immediately before Apply.
+- Remember successful applications from both the editor and switcher. Serialize
+  wallpaper Apply operations to prevent overlapping changes.
+
 ## Changes in v1.12.3
 
 - Handle the main window's close signal directly so compositor close shortcuts
@@ -389,6 +400,53 @@ Quickshell configuration and its `wallpaper set` IPC method.
 
 If no supported wallpaper backend is running, Hunu can still generate files
 for use with another wallpaper manager.
+
+## Wallpaper switcher and hotkeys
+
+After installing, bind the separate picker in `~/.config/hypr/hyprland.conf`:
+
+```ini
+bind = SUPER ALT, W, exec, ~/.config/hunu-wallpaper/switcher.sh
+```
+
+Use your actual installed path if you customize `XDG_CONFIG_HOME` or
+`HUNU_APP_NAME`. The picker works while the full Hunu window is closed. It runs
+only while visible and uses the Apply backend selected in Hunu's settings.
+It does not start Noctalia or any other wallpaper service.
+
+- Left/Right, Tab/Shift+Tab, or the arrow buttons cycle through saved sets.
+- Repeating the hotkey advances the existing picker instead of opening another.
+- Click a thumbnail to select it; Enter, Apply, or double-click confirms.
+- Escape or closing the window cancels without changing the desktop.
+- Browsing only changes the preview; wallpapers change after confirmation.
+
+The picker starts on the last successfully applied set when known, otherwise
+on the newest compatible set. Ordering is newest-first with wraparound. Crops
+are displayed with bounded image decode sizes rather than loading the editor's
+full-resolution workspace.
+
+Only complete sets with metadata, **exactly the currently active output names**,
+and matching crop pixel dimensions are shown. Rotation is included in the
+pixel-size check. For example, two-monitor sets are hidden on a three-monitor
+setup. Enabled Monitor Setup assignments must also match the active outputs;
+if outputs change, update Monitor Setup first. Compatibility is checked again
+when applying, so a display change while browsing cannot apply a stale selection.
+
+Older set metadata does not record physical monitor positions, so this check
+cannot establish that centimetre-based placement is unchanged. Regenerate a set
+if physical placement has changed. The full Previous wallpapers browser remains
+available for inspecting older or incompatible sets.
+
+For immediate cycling without the picker, optional commands are:
+
+```bash
+"${XDG_CONFIG_HOME:-$HOME/.config}/hunu-wallpaper/switcher.sh" next
+"${XDG_CONFIG_HOME:-$HOME/.config}/hunu-wallpaper/switcher.sh" previous
+```
+
+Failed applications keep the previous remembered selection. If a backend fails
+partway through multiple monitor updates, some outputs may already have changed;
+Hunu reports the error and does not claim that selection succeeded.
 
 ## Run manually
 

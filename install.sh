@@ -87,6 +87,9 @@ fi
 # ---------------------------------------------------------------------------
 
 required_files=(
+    "src/Switcher.qml"
+    "src/switcher.sh"
+    "src/switcher-controller.py"
     "src/launch.sh"
     "src/shell.qml"
     "src/SetupView.qml"
@@ -181,6 +184,9 @@ fi
 # ---------------------------------------------------------------------------
 
 app_files=(
+    "Switcher.qml"
+    "switcher.sh"
+    "switcher-controller.py"
     "launch.sh"
     "shell.qml"
     "SetupView.qml"
@@ -229,6 +235,7 @@ done
 
 chmod +x \
     "$CONFIG_DIR/launch.sh" \
+    "$CONFIG_DIR/switcher.sh" \
     "$CONFIG_DIR/split-wallpaper.sh" \
     "$CONFIG_DIR/detect-monitors.sh" \
     "$CONFIG_DIR/save-monitor-config.sh" \
