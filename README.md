@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.15.5
+
+- Reuse prepared image items across carousel positions instead of reloading each
+  fixed slot when cycling. Center/side previews share one bounded decode size.
+- Prepare nearby images ahead of navigation and update the displayed triplet
+  together. Cold loads keep the outgoing triplet intact and skip superseded requests.
+- Keep the memory window bounded to five requested previews plus the outgoing
+  triplet. Enter waits for the highlighted selection to be displayed before keeping it.
+
 ## Changes in v1.15.4
 
 - Remove preview slide and hover animations. Loaded replacements appear directly,

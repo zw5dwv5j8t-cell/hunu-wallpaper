@@ -107,7 +107,9 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertIsNotNone(following)
             self.assertEqual(previous.property('neighborIndex'), 2, 'Previous must wrap at the first set')
             self.assertEqual(following.property('neighborIndex'), 1)
-            self.assertGreater(current.property('width'), following.property('width'))
+            def visual_width(item):
+                return item.mapToScene(QPointF(item.width(), 0)).x() - item.mapToScene(QPointF()).x()
+            self.assertGreater(visual_width(current), visual_width(following))
             frame = find_visual(current, 'roundedImageFrame')
             self.assertGreater(frame.width(), 0)
             self.assertAlmostEqual(frame.width() / frame.height(), 2)
@@ -210,6 +212,53 @@ class PickerInteractionTests(unittest.TestCase):
             root.setProperty('sets', sets)
             QTest.qWait(240)
 
+            # A cold incoming neighbor must hold the whole outgoing triplet,
+            # not update the center and leave an old duplicate at the side.
+            root.setProperty('liveEnabled', False)
+            root.setProperty('queuedName', '')
+            cache_sets = []
+            for i in range(13):
+                path = base / f'cache-{i}.png'
+                path.write_bytes((base / 'preview.png').read_bytes())
+                cache_sets.append(dict(name=f'Cache {i}', title=f'Cache {i}', previewUrl=path.as_uri(),
+                                       fallbackPreviewUrl=path.as_uri(), previewIsSource=True))
+            release.clear()
+            requested.clear()
+            cache_sets[7]['previewUrl'] = f'http://127.0.0.1:{server.server_port}/cold-seven.png'
+            root.setProperty('sets', cache_sets)
+            QTest.qWait(160)
+            root.setProperty('selectedIndex', 6)
+            deadline = time.monotonic() + 3
+            while not requested.is_set() and time.monotonic() < deadline:
+                QTest.qWait(10)
+                time.sleep(0.005)
+            self.assertTrue(requested.is_set())
+            QTest.qWait(50)
+            self.assertEqual(root.property('displayedIndex'), 0, 'Keep outgoing triplet until every incoming asset is decoded')
+            for name, index in [('previousPreview', 12), ('currentPreview', 0), ('nextPreview', 1)]:
+                self.assertEqual(find_visual(root.contentItem(), name).property('neighborIndex'), index)
+
+            def active_assets(item):
+                count = 1 if item.objectName() in ('previousPreview', 'currentPreview', 'nextPreview', 'prefetchedPreview') else 0
+                return count + sum(active_assets(child) for child in item.childItems())
+            self.assertLessEqual(active_assets(root.contentItem()), 8, 'Cache must stay bounded')
+            release.set()
+            deadline = time.monotonic() + 3
+            while root.property('displayedIndex') != 6 and time.monotonic() < deadline:
+                QTest.qWait(10)
+                time.sleep(0.005)
+            self.assertEqual(root.property('displayedIndex'), 6)
+            for name, index in [('previousPreview', 5), ('currentPreview', 6), ('nextPreview', 7)]:
+                self.assertEqual(find_visual(root.contentItem(), name).property('neighborIndex'), index)
+            root.setProperty('selectedIndex', 0)
+            root.setProperty('sets', sets)
+            QTest.qWait(160)
+            root.setProperty('liveEnabled', True)
+            previous = find_visual(root.contentItem(), 'previousPreview')
+            following = find_visual(root.contentItem(), 'nextPreview')
+            current = find_visual(root.contentItem(), 'currentPreview')
+            frame = find_visual(current, 'roundedImageFrame')
+
             content = find_visual(root.contentItem(), 'switcherContent')
             center_y = content.y()
             root.setProperty('verticalPosition', 'top')
@@ -221,16 +270,30 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertEqual(content.y(), center_y)
 
             root.setProperty('sets', sets[:1])
-            self.assertFalse(previous.property('visible'))
-            self.assertFalse(following.property('visible'))
+            QTest.qWait(20)
+            self.assertIsNone(find_visual(root.contentItem(), 'previousPreview'))
+            self.assertIsNone(find_visual(root.contentItem(), 'nextPreview'))
             root.setProperty('sets', sets[:2])
-            self.assertFalse(previous.property('visible'), 'Two sets must not duplicate the same neighbor')
-            self.assertTrue(following.property('visible'))
+            QTest.qWait(20)
+            self.assertIsNone(find_visual(root.contentItem(), 'previousPreview'), 'Two sets must not duplicate the same neighbor')
+            self.assertIsNotNone(find_visual(root.contentItem(), 'nextPreview'))
             root.setProperty('sets', sets)
-            # Side previews must be clickable without confirming the selection.
+            QTest.qWait(100)
+            following = find_visual(root.contentItem(), 'nextPreview')
+            next_frame = find_visual(following, 'roundedImageFrame')
+            old_frame_size = (next_frame.width(), next_frame.height())
+            decoder = find_visual(following, 'previewDecoder')
+            reloads = []
+            decoder.statusChanged.connect(lambda: reloads.append(decoder.property('status')))
+            # The same prepared asset must move from side to center. It must not
+            # reload or resize its rendered bitmap just because its role changes.
             point = following.mapToScene(QPointF(following.width() / 2, following.height() / 2)).toPoint()
             QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
             QTest.qWait(450)
+            self.assertEqual(root.property('displayedIndex'), 1)
+            self.assertIs(find_visual(root.contentItem(), 'currentPreview'), following)
+            self.assertEqual((next_frame.width(), next_frame.height()), old_frame_size)
+            self.assertEqual(reloads, [], 'Promoting a prepared side preview must not decode again')
             self.assertEqual(writes, [dict(action='preview', name='Second')])
             # Finishing an old request must not bypass the quiet period for a
             # newer selection. Rapid choices replace each other, not queue up.

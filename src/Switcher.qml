@@ -18,6 +18,8 @@ PanelWindow {
     property var sets: []
     property var monitorLayout: ({})
     property int selectedIndex: 0
+    property int displayedIndex: 0
+    property bool confirmWhenVisible: false
     property int hiddenCount: 0
     property string backend: ""
     property string errorText: ""
@@ -34,7 +36,7 @@ PanelWindow {
     property string queuedName: ""
     property string previewedName: ""
     property bool normalExit: false
-    readonly property bool busy: !initialized || intent !== ""
+    readonly property bool busy: !initialized || intent !== "" || confirmWhenVisible
 
     function helper(name) {
         return decodeURIComponent(Qt.resolvedUrl(name).toString().replace("file://", ""))
@@ -50,7 +52,10 @@ PanelWindow {
             debounce.restart()
         }
     }
-    onSelectedSetChanged: schedulePreview()
+    onSelectedSetChanged: {
+        schedulePreview()
+        Qt.callLater(function() { if (carousel) carousel.showRequested() })
+    }
     function dispatch() {
         if (!initialized || !sessionProcess.running || inFlight !== "")
             return
@@ -75,12 +80,17 @@ PanelWindow {
     function confirm() {
         if (busy || !selectedSet)
             return
+        if (displayedIndex !== selectedIndex) {
+            confirmWhenVisible = true
+            return
+        }
         intent = "commit"
         queuedName = ""
         debounce.stop()
         dispatch()
     }
     function cancel() {
+        confirmWhenVisible = false
         if (intent === "commit")
             return
         if (!initialized || !sessionProcess.running) {
@@ -112,6 +122,7 @@ PanelWindow {
                 screen = focusedScreen
             const index = sets.findIndex(function(s) { return s.name === result.current })
             selectedIndex = Math.max(0, index)
+            displayedIndex = selectedIndex
             previewedName = result.current
             initialized = true
             visible = true
@@ -217,55 +228,93 @@ PanelWindow {
                     visible: picker.sets.length > 0
                     readonly property bool hasNeighbors: picker.sets.length > 1
 
+                    function offset(index, base) {
+                        const count = picker.sets.length
+                        if (!count)
+                            return 0
+                        let distance = (index - base + count) % count
+                        if (count > 2 && distance > count / 2)
+                            distance -= count
+                        return distance
+                    }
+                    function showRequested() {
+                        const count = picker.sets.length
+                        if (!count)
+                            return
+                        const targets = [picker.selectedIndex]
+                        if (count > 1)
+                            targets.push((picker.selectedIndex + 1) % count)
+                        if (count > 2)
+                            targets.push((picker.selectedIndex + count - 1) % count)
+                        for (let index of targets) {
+                            const loader = previewPool.itemAt(index)
+                            if (!loader || !loader.item || !loader.item.prepared)
+                                return
+                        }
+                        // Commit all three positions in the same QML update.
+                        picker.displayedIndex = picker.selectedIndex
+                        if (picker.confirmWhenVisible) {
+                            picker.confirmWhenVisible = false
+                            picker.confirm()
+                        }
+                    }
                     Repeater {
-                        model: [-1, 1]
-                        delegate: Item {
-                            id: neighbor
-                            required property int modelData
-                            readonly property int neighborIndex: picker.sets.length
-                                ? (picker.selectedIndex + modelData + picker.sets.length) % picker.sets.length : -1
-                            readonly property var wallpaperSet: neighborIndex >= 0 ? picker.sets[neighborIndex] : null
-                            objectName: modelData < 0 ? "previousPreview" : "nextPreview"
-                            // With two sets, show the other set once on the right.
-                            visible: picker.sets.length > (modelData < 0 ? 2 : 1)
-                            width: carousel.width * 0.17
-                            height: carousel.height * 0.65
+                        id: previewPool
+                        // Lightweight loaders only; keep at most five requested
+                        // previews plus the outgoing triplet decoded in memory.
+                        model: picker.sets.length
+                        onItemAdded: Qt.callLater(carousel.showRequested)
+                        delegate: Loader {
+                            id: slot
+                            required property int index
+                            readonly property int displacement: carousel.offset(index, picker.displayedIndex)
+                            readonly property bool onScreen: Math.abs(displacement) <= 1
+                            active: Math.abs(carousel.offset(index, picker.selectedIndex)) <= 2 || onScreen
+                            width: carousel.hasNeighbors ? carousel.width * 0.62 : carousel.width
+                            height: carousel.height
+                            readonly property real sideScale: Math.min(0.65,
+                                carousel.width * 0.17 / Math.max(1, item ? item.paintedWidth : width))
+                            readonly property real visualSideWidth: (item ? item.paintedWidth : width) * sideScale
+                            scale: displacement === 0 ? 1 : sideScale
                             anchors.verticalCenter: parent.verticalCenter
-                            x: modelData < 0 ? 0 : carousel.width - width
-                            RoundedPreview {
-                                anchors.fill: parent
-                                source: neighbor.wallpaperSet ? neighbor.wallpaperSet.previewUrl : ""
-                                fallbackSource: neighbor.wallpaperSet ? neighbor.wallpaperSet.fallbackPreviewUrl : ""
-                                sourceSize: Qt.size(600, 400)
-                                highlighted: neighborMouse.containsMouse
-                                opacity: neighborMouse.containsMouse ? 0.9 : 0.65
-                            }
-                            MouseArea {
-                                id: neighborMouse
-                                anchors.fill: parent
-                                enabled: !picker.busy
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    picker.move(neighbor.modelData)
-                                    controls.forceActiveFocus()
+                            x: (displacement === 0 ? carousel.width / 2
+                                : displacement < 0 ? visualSideWidth / 2
+                                : carousel.width - visualSideWidth / 2) - width / 2
+                            opacity: !onScreen ? 0 : displacement === 0 ? 1
+                                : item && item.hovered ? 0.9 : 0.65
+                            enabled: onScreen && !picker.busy
+                            onLoaded: Qt.callLater(carousel.showRequested)
+                            sourceComponent: RoundedPreview {
+                                id: asset
+                                readonly property int neighborIndex: slot.index
+                                readonly property bool hovered: previewMouse.containsMouse
+                                objectName: slot.displacement === 0 ? "currentPreview"
+                                    : slot.displacement === -1 ? "previousPreview"
+                                    : slot.displacement === 1 ? "nextPreview" : "prefetchedPreview"
+                                readonly property var wallpaperSet: picker.sets[slot.index] || null
+                                source: wallpaperSet ? wallpaperSet.previewUrl : ""
+                                fallbackSource: wallpaperSet ? wallpaperSet.fallbackPreviewUrl : ""
+                                // Identical decode size in every position: moving
+                                // from side to center never reloads the asset.
+                                sourceSize: Qt.size(1000, 700)
+                                highlighted: true
+                                Accessible.name: wallpaperSet ? wallpaperSet.title : "Wallpaper preview"
+                                Accessible.description: wallpaperSet && !wallpaperSet.previewIsSource
+                                    ? "Monitor crop preview" : "Full source preview"
+                                onPreparedChanged: if (prepared) Qt.callLater(carousel.showRequested)
+                                MouseArea {
+                                    id: previewMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: slot.displacement ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                    onClicked: {
+                                        if (slot.displacement !== 0)
+                                            picker.move(slot.displacement < 0 ? -1 : 1)
+                                        controls.forceActiveFocus()
+                                    }
                                 }
                             }
                         }
-                    }
-                    RoundedPreview {
-                        id: fullPreview
-                        objectName: "currentPreview"
-                        Accessible.name: picker.selectedSet ? picker.selectedSet.title : "Wallpaper preview"
-                        Accessible.description: picker.selectedSet && !picker.selectedSet.previewIsSource
-                            ? "Monitor crop preview; regenerate this set for a full-image preview" : "Full source preview"
-                        anchors.centerIn: parent
-                        width: carousel.hasNeighbors ? carousel.width * 0.62 : carousel.width
-                        height: carousel.height
-                        source: picker.selectedSet ? picker.selectedSet.previewUrl : ""
-                        fallbackSource: picker.selectedSet ? picker.selectedSet.fallbackPreviewUrl : ""
-                        sourceSize: Qt.size(1600, 1000)
-                        highlighted: true
                     }
                 }
                 Item {
@@ -344,12 +393,17 @@ PanelWindow {
         property bool shadowEnabled: true
         property string failedUrl: ""
         readonly property real aspectRatio: paintedImage.displayedRatio
+        readonly property real paintedWidth: imageFrame.width
+        readonly property real paintedHeight: imageFrame.height
+        readonly property bool prepared: photo.status === Image.Error
+            || (photo.status === Image.Ready && paintedImage.displayedUrl.toString() === photo.source.toString())
         onHighlightedChanged: paintedImage.requestPaint()
         onShadowEnabledChanged: paintedImage.requestPaint()
 
         // Keep image decoding bounded and use its intrinsic size for aspect fit.
         Image {
             id: photo
+            objectName: "previewDecoder"
             visible: false
             source: preview.failedUrl === preview.source.toString() ? preview.fallbackSource : preview.source
             sourceSize: preview.sourceSize
