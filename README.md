@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.13.2
+
+- Show single images floating on a transparent switcher overlay, without the
+  enclosing card, dimmed backdrop, or monitor outlines.
+- Save a full-source JPEG preview (up to 1600×1000) beside newly generated sets.
+  The original image remains unchanged and is not copied at full resolution.
+- Older sets use a single monitor crop as a clearly labelled fallback. Regenerate
+  a set to give it a full-source preview.
+
 ## Changes in v1.13.1
 
 - Show the switcher as a centered layer-shell overlay on the focused monitor,
@@ -418,15 +427,22 @@ bind = SUPER ALT, W, exec, ~/.config/hunu-wallpaper/switcher.sh
 
 Use your actual installed path if you customize `XDG_CONFIG_HOME` or
 `HUNU_APP_NAME`. The picker opens centered on the focused monitor, above normal and fullscreen
-windows with a dimmed backdrop. It works while the full Hunu window is closed. It runs
+windows on a transparent surface. It works while the full Hunu window is closed. It runs
 only while visible and uses the Apply backend selected in Hunu's settings.
 It does not start Noctalia or any other wallpaper service.
 
 - Left/Right, Tab/Shift+Tab, or the arrow buttons cycle through saved sets.
 - Repeating the hotkey advances the existing picker instead of opening another.
 - Click a thumbnail to select it; Enter, Apply, or double-click confirms.
-- Escape or clicking the dimmed backdrop cancels without changing the desktop.
+- Escape or clicking outside the picker cancels without changing the desktop.
 - Browsing only changes the preview; wallpapers change after confirmation.
+
+Newly generated sets include a `<set>.preview.jpg` file showing the full source
+image at up to 1600×1000 pixels. Keep it with the PNGs and `.hunu.json` when moving
+sets. It is a browsing preview, not a full-resolution source backup. Existing
+sets remain usable; without a preview the picker displays the widest monitor
+crop with a “Crop preview” label. The original source cannot be recovered from
+old cropped files; regenerate the set for a full-image preview.
 
 The picker starts on the last successfully applied set when known, otherwise
 on the newest compatible set. Ordering is newest-first with wraparound. Crops

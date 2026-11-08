@@ -13,7 +13,7 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "hunu-wallpaper-switcher"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-    color: Qt.rgba(0, 0, 0, 0.35)
+    color: "transparent"
     visible: false
     property var sets: []
     property var monitorLayout: ({})
@@ -99,15 +99,12 @@ PanelWindow {
         onClicked: Qt.quit()
     }
 
-    Rectangle {
+    Item {
         id: card
         anchors.centerIn: parent
-        width: Math.min(820, parent.width - 48)
-        height: Math.min(570, parent.height - 48)
-        radius: 16
-        color: Theme.base
-        border.color: Qt.alpha(Theme.subtext, 0.3)
-        // Consume clicks inside the card; only the backdrop dismisses it.
+        width: Math.min(1040, parent.width - 64)
+        height: Math.min(720, parent.height - 64)
+        // Keep the overlay surface transparent: only images and controls draw.
         MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
 
         FocusScope {
@@ -131,26 +128,23 @@ PanelWindow {
             }
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 24
-                spacing: 14
-                RowLayout {
-                    Label {
-                        text: "Choose a wallpaper"
-                        font.pixelSize: 24
-                        font.bold: true
-                        color: Theme.text
-                        Layout.fillWidth: true
-                    }
-                    Label {
-                        text: picker.sets.length ? (picker.selectedIndex + 1) + " / " + picker.sets.length : ""
-                        color: Theme.subtext
-                    }
-                }
-                SavedSetPreview {
+                spacing: 12
+                Image {
+                    id: fullPreview
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    wallpaperSet: picker.selectedSet
-                    monitorLayout: picker.monitorLayout
+                    property string failedUrl: ""
+                    source: picker.selectedSet
+                        ? (failedUrl === picker.selectedSet.previewUrl
+                            ? picker.selectedSet.fallbackPreviewUrl : picker.selectedSet.previewUrl) : ""
+                    sourceSize.width: 1600
+                    sourceSize.height: 1000
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    onStatusChanged: {
+                        if (status === Image.Error && picker.selectedSet)
+                            failedUrl = picker.selectedSet.previewUrl
+                    }
                     visible: picker.sets.length > 0
                 }
                 Label {
@@ -160,50 +154,78 @@ PanelWindow {
                     verticalAlignment: Text.AlignVCenter
                     horizontalAlignment: Text.AlignHCenter
                     text: loader.running ? "Loading saved wallpapers…" : "No saved wallpaper sets match this monitor layout."
-                    color: Theme.subtext
+                    color: "white"
+                    style: Text.Outline
+                    styleColor: "#aa000000"
                     wrapMode: Text.WordWrap
+                }
+                RowLayout {
+                    Label {
+                        Layout.fillWidth: true
+                        text: picker.selectedSet ? picker.selectedSet.title : ""
+                        color: "white"
+                        style: Text.Outline
+                        styleColor: "#aa000000"
+                        font.pixelSize: 18
+                        elide: Text.ElideMiddle
+                    }
+                    Label {
+                        text: picker.sets.length ? (picker.selectedIndex + 1) + " / " + picker.sets.length : ""
+                        color: "white"
+                        style: Text.Outline
+                        styleColor: "#aa000000"
+                    }
                 }
                 Label {
                     Layout.fillWidth: true
-                    text: picker.selectedSet ? picker.selectedSet.title : ""
-                    color: Theme.text
-                    font.pixelSize: 18
-                    elide: Text.ElideMiddle
+                    visible: picker.selectedSet !== null && !picker.selectedSet.previewIsSource
+                    text: "Crop preview · Regenerate this set for a full-image preview"
+                    color: "white"
+                    style: Text.Outline
+                    styleColor: "#aa000000"
+                    font.pixelSize: 12
                 }
                 ListView {
                     id: filmstrip
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 90
+                    Layout.preferredHeight: 88
                     orientation: ListView.Horizontal
-                    spacing: 10
+                    spacing: 14
                     clip: true
                     model: picker.sets
                     currentIndex: picker.selectedIndex
                     highlightRangeMode: ListView.ApplyRange
                     highlightMoveDuration: 100
-                    delegate: Rectangle {
+                    delegate: Item {
+                        id: thumbnail
                         required property var modelData
                         required property int index
                         width: 142
-                        height: 84
-                        color: Theme.surface
-                        radius: 6
-                        border.width: index === picker.selectedIndex ? 2 : 1
-                        border.color: index === picker.selectedIndex ? Theme.success : Theme.muted
-                        SavedSetPreview {
+                        height: 88
+                        Image {
                             anchors.fill: parent
-                            anchors.margins: 7
-                            wallpaperSet: modelData
-                            monitorLayout: picker.monitorLayout
-                            showLabels: false
-                            decodeWidth: 180
-                            decodeHeight: 120
+                            anchors.bottomMargin: 8
+                            source: thumbnail.modelData.previewUrl
+                            sourceSize.width: 280
+                            sourceSize.height: 160
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            opacity: thumbnail.index === picker.selectedIndex ? 1 : 0.65
+                        }
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.bottom: parent.bottom
+                            width: 32
+                            height: 2
+                            radius: 1
+                            color: "white"
+                            visible: thumbnail.index === picker.selectedIndex
                         }
                         MouseArea {
                             anchors.fill: parent
                             enabled: !picker.busy
                             onClicked: {
-                                picker.selectedIndex = index
+                                picker.selectedIndex = thumbnail.index
                                 controls.forceActiveFocus()
                             }
                             onDoubleClicked: picker.confirm()
@@ -214,7 +236,9 @@ PanelWindow {
                     Layout.fillWidth: true
                     visible: picker.errorText !== ""
                     text: picker.errorText
-                    color: Theme.text
+                    color: "white"
+                    style: Text.Outline
+                    styleColor: "#aa000000"
                     wrapMode: Text.WordWrap
                 }
                 RowLayout {
@@ -222,13 +246,34 @@ PanelWindow {
                         Layout.fillWidth: true
                         text: "← / → Preview · Enter Apply · Esc Cancel"
                             + (picker.hiddenCount ? "\n" + picker.hiddenCount + " incompatible or incomplete sets hidden" : "")
-                        color: Theme.subtext
+                        color: "white"
+                        style: Text.Outline
+                        styleColor: "#aa000000"
                         font.pixelSize: 12
                     }
-                    Button { focusPolicy: Qt.NoFocus; text: "‹"; enabled: !picker.busy && picker.sets.length > 1; onClicked: picker.move(-1) }
-                    Button { focusPolicy: Qt.NoFocus; text: "›"; enabled: !picker.busy && picker.sets.length > 1; onClicked: picker.move(1) }
                     Button {
                         focusPolicy: Qt.NoFocus
+                        flat: true
+                        palette.buttonText: "white"
+                        background: Rectangle { color: "#44000000"; radius: 8 }
+                        text: "‹"
+                        enabled: !picker.busy && picker.sets.length > 1
+                        onClicked: picker.move(-1)
+                    }
+                    Button {
+                        focusPolicy: Qt.NoFocus
+                        flat: true
+                        palette.buttonText: "white"
+                        background: Rectangle { color: "#44000000"; radius: 8 }
+                        text: "›"
+                        enabled: !picker.busy && picker.sets.length > 1
+                        onClicked: picker.move(1)
+                    }
+                    Button {
+                        focusPolicy: Qt.NoFocus
+                        flat: true
+                        palette.buttonText: "white"
+                        background: Rectangle { color: "#44000000"; radius: 8 }
                         text: applyProcess.running ? "Applying…" : "Apply"
                         enabled: !picker.busy && picker.selectedSet !== null
                         onClicked: picker.confirm()

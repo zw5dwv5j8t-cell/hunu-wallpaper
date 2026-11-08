@@ -26,6 +26,7 @@ def scan(directory):
         created = ''
         mode = ''
         ai_scale = None
+        preview_url = ''
         if not legacy:
             try:
                 data = json.loads(manifest.read_text())
@@ -55,6 +56,9 @@ def scan(directory):
                 created = data.get('created', '')
                 mode = data.get('mode', '')
                 ai_scale = data.get('ai_scale')
+                preview = folder / (prefix + '.preview.jpg')
+                if data.get('preview') == preview.name and preview.is_file():
+                    preview_url = preview.as_uri()
             except (OSError, ValueError, KeyError, TypeError, IndexError):
                 error = 'Incomplete or invalid saved set. Apply is unavailable.'
                 rows = []
@@ -64,7 +68,7 @@ def scan(directory):
                              'file': str(image), 'url': image.as_uri()})
         sets.append({'name': prefix, 'title': str(title), 'created': str(created),
                      'legacy': legacy, 'error': error, 'monitors': rows,
-                     'mode': mode, 'aiScale': ai_scale,
+                     'mode': mode, 'aiScale': ai_scale, 'previewUrl': preview_url,
                      'modified': max(p.stat().st_mtime for p in images.values())})
     return sorted(sets, key=lambda item: item['modified'], reverse=True)
 

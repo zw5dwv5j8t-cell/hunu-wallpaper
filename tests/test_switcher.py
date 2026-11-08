@@ -92,6 +92,26 @@ class SwitcherTests(unittest.TestCase):
         png(self.output / 'legacy_a.png', 12, 8)
         self.assertEqual(self.listing()['sets'], [])
 
+    def test_full_source_preview_and_old_set_fallback(self):
+        self.make_set('new')
+        manifest = self.output / 'new.hunu.json'
+        data = json.loads(manifest.read_text())
+        data['preview'] = 'new.preview.jpg'
+        manifest.write_text(json.dumps(data))
+        (self.output / 'new.preview.jpg').write_bytes(b'preview fixture')
+        item, = self.listing()['sets']
+        self.assertTrue(item['previewIsSource'])
+        self.assertEqual(item['previewUrl'], (self.output / 'new.preview.jpg').as_uri())
+        (self.output / 'new.preview.jpg').unlink()
+        item, = self.listing()['sets']
+        self.assertFalse(item['previewIsSource'])
+        self.assertEqual(item['previewUrl'], item['fallbackPreviewUrl'])
+        self.assertTrue(item['previewUrl'].endswith('_a.png'))
+        # Untrusted or unrelated metadata paths never become preview URLs.
+        data['preview'] = '../source.jpg'
+        manifest.write_text(json.dumps(data))
+        self.assertFalse(self.listing()['sets'][0]['previewIsSource'])
+
     def test_rotation_dimensions(self):
         self.make_set('landscape')
         self.make_set('portrait')

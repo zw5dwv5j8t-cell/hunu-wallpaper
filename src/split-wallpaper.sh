@@ -331,6 +331,7 @@ while true; do
 
     collision=false
     [[ ! -e "$OUTPUT_DIR/${PREFIX}.hunu.json" && ! -L "$OUTPUT_DIR/${PREFIX}.hunu.json" ]] || collision=true
+    [[ ! -e "$OUTPUT_DIR/${PREFIX}.preview.jpg" && ! -L "$OUTPUT_DIR/${PREFIX}.preview.jpg" ]] || collision=true
     for suffix in a b c; do
         candidate="$OUTPUT_DIR/${PREFIX}_${suffix}.png"
         if [[ -e "$candidate" || -L "$candidate" ]]; then
@@ -610,12 +611,13 @@ for i in "${ACTIVE[@]}"; do
 done
 
 MANIFEST_FILE="$OUTPUT_DIR/${PREFIX}.hunu.json"
+PREVIEW_FILE="$OUTPUT_DIR/${PREFIX}.preview.jpg"
 PUBLISHING=false
 PUBLISHED=false
 
 cleanup_generation() {
     if [[ "$PUBLISHING" == true && "$PUBLISHED" == false ]]; then
-        rm -f -- "$MANIFEST_FILE"
+        rm -f -- "$MANIFEST_FILE" "$PREVIEW_FILE"
         for slot in "${ACTIVE[@]}"; do
             rm -f -- "${FINAL_OUTPUT_FILE[$slot]}"
         done
@@ -725,6 +727,13 @@ case "$MODE" in
     quality) quality_mode ;;
 esac
 
+# Retain a bounded full-source preview, not another full-resolution source copy.
+# Keep it with the set so previews still work after the source is moved/deleted.
+printf 'JOB_STAGE=Saving source preview…\nJOB_PROGRESS=-1\n'
+magick "$SOURCE" -auto-orient -thumbnail '1600x1000>' \
+    -background '#181825' -alpha remove -alpha off -strip -quality 85 \
+    "$WORK_DIR/${PREFIX}.preview.jpg"
+
 # Store relative filenames so a completed set can be moved to another folder.
 metadata='[]'
 position_scale=1
@@ -739,12 +748,15 @@ for i in "${ACTIVE[@]}"; do
 done
 jq -n --arg set "$PREFIX" --arg source "$source_label" \
     --arg created "$(date --iso-8601=seconds)" --arg mode "$MODE" \
-    --argjson aiScale "$AI_SCALE" \
+    --argjson aiScale "$AI_SCALE" --arg preview "${PREFIX}.preview.jpg" \
     --argjson monitors "$metadata" \
     '{version: 1, set: $set, source: $source, created: $created,
-      mode: $mode, ai_scale: $aiScale, monitors: $monitors}' > "$WORK_DIR/set.hunu.json"
+      mode: $mode, ai_scale: $aiScale, preview: $preview, monitors: $monitors}' > "$WORK_DIR/set.hunu.json"
 [[ ! -e "$MANIFEST_FILE" && ! -L "$MANIFEST_FILE" ]] ||
     die "Output metadata already exists: $MANIFEST_FILE"
+
+[[ ! -e "$PREVIEW_FILE" && ! -L "$PREVIEW_FILE" ]] ||
+    die "Output preview already exists: $PREVIEW_FILE"
 
 # Check every destination before publishing; preserve existing files.
 for i in "${ACTIVE[@]}"; do
@@ -759,6 +771,7 @@ for i in "${ACTIVE[@]}"; do
     mv -T -- "${OUTPUT_FILE[$i]}" "${FINAL_OUTPUT_FILE[$i]}"
     OUTPUT_FILE[$i]="${FINAL_OUTPUT_FILE[$i]}"
 done
+mv -T -- "$WORK_DIR/${PREFIX}.preview.jpg" "$PREVIEW_FILE"
 mv -T -- "$WORK_DIR/set.hunu.json" "$MANIFEST_FILE"
 PUBLISHED=true
 

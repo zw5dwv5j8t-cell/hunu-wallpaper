@@ -100,6 +100,13 @@ def listing():
     all_sets = saved_sets.scan(values['OUTPUT_DIR'])
     sets = sorted((item for item in all_sets if compatible(item, monitors)),
                   key=lambda item: (item['modified'], item['name']), reverse=True)
+    for item in sets:
+        # Old sets have only monitor crops; choose the widest as a single-image
+        # fallback rather than suggesting that the original can be reconstructed.
+        widest = max(item['monitors'], key=lambda row: png_size(row['file'])[0] / png_size(row['file'])[1])
+        item['fallbackPreviewUrl'] = widest['url']
+        item['previewIsSource'] = bool(item['previewUrl'])
+        item['previewUrl'] = item['previewUrl'] or widest['url']
     try:
         last = json.loads(state_path().read_text())
     except (OSError, ValueError):
