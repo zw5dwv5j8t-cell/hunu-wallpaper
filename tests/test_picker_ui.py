@@ -109,24 +109,44 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertEqual(following.property('neighborIndex'), 1)
             self.assertGreater(current.property('width'), following.property('width'))
             frame = find_visual(current, 'roundedImageFrame')
-            mask = find_visual(current, 'roundedImageMask')
             self.assertGreater(frame.width(), 0)
             self.assertAlmostEqual(frame.width() / frame.height(), 2)
             self.assertLessEqual(frame.width(), current.width())
             self.assertLessEqual(frame.height(), current.height())
-            self.assertGreater(mask.property('radius'), 0)
+            self.assertGreater(frame.property('cornerRadius'), 0)
+            current.setProperty('shadowEnabled', False)
+            QTest.qWait(60)
+
+            def assert_clipped(expected_color):
+                screenshot = root.grabWindow()
+                origin = frame.mapToScene(QPointF())
+                left, top = round(origin.x()), round(origin.y())
+                right, bottom = round(origin.x() + frame.width()), round(origin.y() + frame.height())
+                for x, y in [(left + 2, top + 2), (right - 3, top + 2),
+                             (left + 2, bottom - 3), (right - 3, bottom - 3)]:
+                    self.assertEqual(screenshot.pixelColor(x, y).alpha(), 0, 'Actual image corners must be transparent')
+                center = screenshot.pixelColor(round(origin.x() + frame.width() / 2), round(origin.y() + frame.height() / 2))
+                self.assertEqual(center, expected_color)
+
+            from PySide6.QtGui import QColor
+            assert_clipped(QColor(Qt.GlobalColor.darkBlue))
             portrait = QImage(200, 400, QImage.Format_RGB32)
             portrait.fill(Qt.GlobalColor.darkGreen)
             self.assertTrue(portrait.save(str(base / 'portrait.png')))
             portrait_sets = [dict(s) for s in sets]
             portrait_sets[0]['previewUrl'] = (base / 'portrait.png').as_uri()
+            motion = []
+            frame.slideOffsetChanged.connect(lambda: motion.append(frame.property('slideOffset')))
             root.setProperty('sets', portrait_sets)
-            QTest.qWait(100)
+            QTest.qWait(240)
             self.assertAlmostEqual(frame.width() / frame.height(), 0.5)
+            self.assertTrue(any(abs(offset) > 0.1 for offset in motion), 'A source change should animate')
+            self.assertAlmostEqual(frame.property('slideOffset'), 0)
+            assert_clipped(QColor(Qt.GlobalColor.darkGreen))
             self.assertLessEqual(frame.width(), current.width())
             self.assertLessEqual(frame.height(), current.height())
             root.setProperty('sets', sets)
-            QTest.qWait(100)
+            QTest.qWait(240)
 
             content = find_visual(root.contentItem(), 'switcherContent')
             center_y = content.y()

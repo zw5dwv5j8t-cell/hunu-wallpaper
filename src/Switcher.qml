@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -19,6 +18,7 @@ PanelWindow {
     property var sets: []
     property var monitorLayout: ({})
     property int selectedIndex: 0
+    property int navigationDirection: 1
     property int hiddenCount: 0
     property string backend: ""
     property string errorText: ""
@@ -41,8 +41,10 @@ PanelWindow {
         return decodeURIComponent(Qt.resolvedUrl(name).toString().replace("file://", ""))
     }
     function move(step) {
-        if (!busy && sets.length)
+        if (!busy && sets.length) {
+            navigationDirection = step < 0 ? -1 : 1
             selectedIndex = (selectedIndex + step + sets.length) % sets.length
+        }
     }
     function schedulePreview() {
         if (initialized && liveEnabled && selectedSet && intent === "") {
@@ -267,6 +269,8 @@ PanelWindow {
                         fallbackSource: picker.selectedSet ? picker.selectedSet.fallbackPreviewUrl : ""
                         sourceSize: Qt.size(1600, 1000)
                         highlighted: true
+                        animateChanges: true
+                        slideDirection: picker.navigationDirection
                     }
                 }
                 Item {
@@ -334,65 +338,140 @@ PanelWindow {
         }
     }
 
-    // Fit the frame to the image itself, not its letterboxed layout area.
+    // Clip the pixels and paint the border in one rounded path. Canvas uses the
+    // same implementation with GPU and software rendering; no shader mask needed.
     component RoundedPreview: Item {
         id: preview
         property url source: ""
         property url fallbackSource: ""
         property size sourceSize: Qt.size(1600, 1000)
         property bool highlighted: false
+        property bool shadowEnabled: true
+        property bool animateChanges: false
+        property int slideDirection: 1
         property string failedUrl: ""
+        property bool hasDrawn: false
         readonly property real aspectRatio: photo.implicitWidth / Math.max(1, photo.implicitHeight)
+        onHighlightedChanged: paintedImage.requestPaint()
+        onShadowEnabledChanged: paintedImage.requestPaint()
 
+        // Keep image decoding bounded and use its intrinsic size for aspect fit.
+        Image {
+            id: photo
+            visible: false
+            source: preview.failedUrl === preview.source.toString() ? preview.fallbackSource : preview.source
+            sourceSize: preview.sourceSize
+            asynchronous: true
+            onStatusChanged: {
+                if (status === Image.Error)
+                    preview.failedUrl = preview.source.toString()
+            }
+        }
         Item {
             id: imageFrame
             objectName: "roundedImageFrame"
+            property real slideOffset: 0
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: slideOffset
             width: photo.status === Image.Ready
                 ? Math.min(preview.width, preview.height * preview.aspectRatio) : 0
             height: width / Math.max(0.001, preview.aspectRatio)
             readonly property real cornerRadius: Math.min(22, width / 10, height / 10)
-            Rectangle {
-                id: roundedMask
-                objectName: "roundedImageMask"
-                anchors.fill: parent
-                radius: imageFrame.cornerRadius
-                color: "white"
-                visible: false
-                layer.enabled: true
+            NumberAnimation {
+                id: slide
+                target: imageFrame
+                property: "slideOffset"
+                to: 0
+                duration: 160
+                easing.type: Easing.OutCubic
             }
-            Image {
-                id: photo
-                anchors.fill: parent
-                source: preview.failedUrl === preview.source.toString() ? preview.fallbackSource : preview.source
-                sourceSize: preview.sourceSize
-                asynchronous: true
-                fillMode: Image.PreserveAspectFit
-                // Shader effects require the normal GPU scene graph. Keep the
-                // image visible if Qt falls back to the software renderer.
-                layer.enabled: GraphicsInfo.api !== GraphicsInfo.Software
-                layer.effect: MultiEffect {
-                    maskEnabled: true
-                    maskSource: roundedMask
-                    shadowEnabled: true
-                    shadowColor: "black"
-                    shadowOpacity: preview.highlighted ? 0.35 : 0.2
-                    shadowBlur: 0.45
-                    shadowVerticalOffset: 6
+            Canvas {
+                id: paintedImage
+                objectName: "roundedImageCanvas"
+                readonly property int padding: 24
+                property url imageUrl: photo.status === Image.Ready ? photo.source : ""
+                property url loadedUrl: ""
+                property url readyUrl: ""
+                x: -padding
+                y: -padding
+                width: imageFrame.width + padding * 2
+                height: imageFrame.height + padding * 2
+                antialiasing: true
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+                function imageReady() {
+                    if (!isImageLoaded(imageUrl))
+                        return
+                    requestPaint()
+                    if (readyUrl.toString() === imageUrl.toString())
+                        return
+                    readyUrl = imageUrl
+                    if (preview.animateChanges && preview.hasDrawn) {
+                        slide.stop()
+                        imageFrame.slideOffset = preview.slideDirection * 24
+                        slide.start()
+                    }
+                    preview.hasDrawn = true
                 }
-                onStatusChanged: {
-                    if (status === Image.Error)
-                        preview.failedUrl = preview.source.toString()
+                function reload() {
+                    if (loadedUrl.toString() !== "" && loadedUrl.toString() !== imageUrl.toString())
+                        unloadImage(loadedUrl)
+                    loadedUrl = imageUrl
+                    if (imageUrl.toString() !== "") {
+                        loadImage(imageUrl, preview.sourceSize)
+                        if (isImageLoaded(imageUrl))
+                            imageReady()
+                    }
+                    requestPaint()
                 }
-            }
-            Rectangle {
-                anchors.fill: parent
-                radius: imageFrame.cornerRadius
-                color: "transparent"
-                border.width: preview.highlighted ? 2 : 1
-                border.color: preview.highlighted ? "#b3ffffff" : "#55ffffff"
-                visible: photo.status === Image.Ready
-                Behavior on border.color { ColorAnimation { duration: 120 } }
+                onImageUrlChanged: reload()
+                onImageLoaded: imageReady()
+                Component.onCompleted: reload()
+                onPaint: {
+                    const ctx = getContext("2d")
+                    ctx.reset()
+                    ctx.clearRect(0, 0, width, height)
+                    if (!isImageLoaded(imageUrl) || imageFrame.width <= 0 || imageFrame.height <= 0)
+                        return
+                    const w = imageFrame.width
+                    const h = imageFrame.height
+                    const r = imageFrame.cornerRadius
+                    function roundedPath(x, y, width, height, radius) {
+                        ctx.beginPath()
+                        ctx.moveTo(x + radius, y)
+                        ctx.lineTo(x + width - radius, y)
+                        ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
+                        ctx.lineTo(x + width, y + height - radius)
+                        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
+                        ctx.lineTo(x + radius, y + height)
+                        ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
+                        ctx.lineTo(x, y + radius)
+                        ctx.quadraticCurveTo(x, y, x + radius, y)
+                        ctx.closePath()
+                    }
+                    if (preview.shadowEnabled) {
+                        roundedPath(padding, padding, w, h, r)
+                        ctx.shadowColor = preview.highlighted ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.2)"
+                        ctx.shadowBlur = 14
+                        ctx.shadowOffsetY = 6
+                        ctx.fillStyle = "rgba(0,0,0,0.3)"
+                        ctx.fill()
+                        ctx.shadowColor = "transparent"
+                        ctx.shadowBlur = 0
+                        ctx.shadowOffsetY = 0
+                    }
+                    ctx.save()
+                    roundedPath(padding, padding, w, h, r)
+                    ctx.clip()
+                    ctx.drawImage(imageUrl, padding, padding, w, h)
+                    ctx.restore()
+                    const line = preview.highlighted ? 2 : 1
+                    roundedPath(padding + line / 2, padding + line / 2,
+                        w - line, h - line, Math.max(0, r - line / 2))
+                    ctx.lineWidth = line
+                    ctx.strokeStyle = preview.highlighted ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.33)"
+                    ctx.stroke()
+                }
             }
         }
     }

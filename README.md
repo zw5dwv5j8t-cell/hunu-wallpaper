@@ -8,6 +8,14 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.15.2
+
+- Fix square image corners extending outside the rounded border: image clipping
+  and border drawing now share one rounded path, in both GPU/software rendering.
+- Add a subtle 160 ms directional slide when the selected image changes.
+  Rapid navigation restarts the motion for the latest selection without queueing
+  animations or changing the live-preview delay/rollback behavior.
+
 ## Changes in v1.15.1
 
 - Round the actual image edges in all three carousel previews, including portrait
