@@ -53,7 +53,7 @@ class SwitcherTests(unittest.TestCase):
     def set_monitors(self, count, rotated=False):
         self.monitors.write_text(json.dumps([dict(name=f'DP-{i}', width=12, height=8,
                                                    transform=1 if rotated and i == 1 else 0,
-                                                   mirrorOf='none') for i in range(1, count + 1)]))
+                                                   mirrorOf='none', focused=i == 2) for i in range(1, count + 1)]))
 
     def make_set(self, name, count=3, size=(12, 8)):
         records = []
@@ -82,6 +82,7 @@ class SwitcherTests(unittest.TestCase):
         result = self.listing()
         self.assertEqual([s['name'] for s in result['sets']], ['three'])
         self.assertEqual(result['hidden'], 1)
+        self.assertEqual(result['focusedOutput'], 'DP-2')
         self.assertFalse(self.log.exists(), 'Browsing must never apply wallpapers')
 
     def test_missing_image_wrong_dimensions_and_legacy_are_hidden(self):

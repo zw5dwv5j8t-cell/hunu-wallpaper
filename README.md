@@ -8,6 +8,13 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.13.1
+
+- Show the switcher as a centered layer-shell overlay on the focused monitor,
+  above normal windows and fullscreen applications, with a dimmed backdrop.
+- Escape or clicking outside the picker cancels. No separate tiled or floating
+  application window is created, and no workspace space is reserved.
+
 ## Changes in v1.13.0
 
 - Added a separate visual saved-wallpaper switcher, launched on demand without
@@ -410,14 +417,15 @@ bind = SUPER ALT, W, exec, ~/.config/hunu-wallpaper/switcher.sh
 ```
 
 Use your actual installed path if you customize `XDG_CONFIG_HOME` or
-`HUNU_APP_NAME`. The picker works while the full Hunu window is closed. It runs
+`HUNU_APP_NAME`. The picker opens centered on the focused monitor, above normal and fullscreen
+windows with a dimmed backdrop. It works while the full Hunu window is closed. It runs
 only while visible and uses the Apply backend selected in Hunu's settings.
 It does not start Noctalia or any other wallpaper service.
 
 - Left/Right, Tab/Shift+Tab, or the arrow buttons cycle through saved sets.
 - Repeating the hotkey advances the existing picker instead of opening another.
 - Click a thumbnail to select it; Enter, Apply, or double-click confirms.
-- Escape or closing the window cancels without changing the desktop.
+- Escape or clicking the dimmed backdrop cancels without changing the desktop.
 - Browsing only changes the preview; wallpapers change after confirmation.
 
 The picker starts on the last successfully applied set when known, otherwise

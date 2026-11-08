@@ -54,6 +54,7 @@ def active_monitors():
     result = subprocess.run(['hyprctl', 'monitors', '-j'], capture_output=True,
                             text=True, check=True, timeout=5)
     monitors = {}
+    focused = ''
     for monitor in json.loads(result.stdout):
         if monitor.get('disabled') or monitor.get('mirrorOf', 'none') != 'none':
             continue
@@ -63,9 +64,11 @@ def active_monitors():
         if width <= 0 or height <= 0 or monitor['name'] in monitors:
             raise ValueError('Invalid active monitor information.')
         monitors[monitor['name']] = (width, height)
+        if monitor.get('focused'):
+            focused = monitor['name']
     if not 1 <= len(monitors) <= 3:
         raise ValueError('The switcher requires one to three active monitors.')
-    return monitors
+    return monitors, focused
 
 
 def png_size(path):
@@ -90,7 +93,7 @@ def compatible(item, monitors):
 
 def listing():
     config, values = configuration()
-    monitors = active_monitors()
+    monitors, focused = active_monitors()
     layout = saved_sets.load_layout(config)
     if set(layout) != set(monitors):
         raise ValueError('Active outputs differ from Monitor Setup. Update the setup in Hunu first.')
@@ -104,7 +107,8 @@ def listing():
     current = next((item['name'] for item in sets if
                     {row['output']: str(Path(row['file']).resolve()) for row in item['monitors']} == last), '')
     return {'sets': sets, 'layout': layout, 'current': current,
-            'hidden': len(all_sets) - len(sets), 'backend': values['APPLY_BACKEND']}
+            'hidden': len(all_sets) - len(sets), 'backend': values['APPLY_BACKEND'],
+            'focusedOutput': focused}
 
 
 def apply(item, backend):
