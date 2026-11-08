@@ -8,6 +8,19 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.14.0
+
+- Center switcher titles, captions, status text, and navigation controls.
+- Add live desktop previews for native Noctalia installations: browsing applies
+  the highlighted compatible set, Enter keeps it, and Escape restores the actual
+  per-output wallpaper paths captured when opening the picker.
+- Debounce navigation and serialize previews. Temporary previews do not update
+  Hunu's remembered selection, and other Apply operations are blocked while the
+  picker session is active.
+- Fall back to confirmation-only browsing when the backend cannot report readable
+  current wallpaper paths. Noctalia's native `msg` interface is currently required
+  for live preview.
+
 ## Changes in v1.13.2
 
 - Show single images floating on a transparent switcher overlay, without the
@@ -431,11 +444,17 @@ windows on a transparent surface. It works while the full Hunu window is closed.
 only while visible and uses the Apply backend selected in Hunu's settings.
 It does not start Noctalia or any other wallpaper service.
 
-- Left/Right, Tab/Shift+Tab, or the arrow buttons cycle through saved sets.
+- Left/Right, Tab/Shift+Tab, the arrow buttons, or clicking a thumbnail selects a set.
 - Repeating the hotkey advances the existing picker instead of opening another.
-- Click a thumbnail to select it; Enter, Apply, or double-click confirms.
-- Escape or clicking outside the picker cancels without changing the desktop.
-- Browsing only changes the preview; wallpapers change after confirmation.
+- With native Noctalia, selection changes preview the set on the desktop after a
+  short debounce. Enter keeps the selection, remembers it, and closes the picker.
+- Escape or clicking outside restores the wallpapers captured on opening, then
+  closes. This also works when those wallpapers were set outside Hunu.
+- Navigation can continue while an Apply is running; only the latest pending set
+  is previewed next. Enter and Escape wait for an active Apply to finish.
+- If the backend cannot report readable current wallpaper files, live preview is
+  disabled with an explanation. Browsing then changes only the overlay image and
+  Enter applies. Other backends retain this confirmation-only behavior.
 
 Newly generated sets include a `<set>.preview.jpg` file showing the full source
 image at up to 1600×1000 pixels. Keep it with the PNGs and `.hunu.json` when moving
@@ -468,8 +487,21 @@ For immediate cycling without the picker, optional commands are:
 "${XDG_CONFIG_HOME:-$HOME/.config}/hunu-wallpaper/switcher.sh" previous
 ```
 
-Failed applications keep the previous remembered selection. If a backend fails
-partway through multiple monitor updates, some outputs may already have changed;
+Live previews leave Hunu's last-applied record unchanged until Enter succeeds.
+The session holds the shared Apply lock, so the full editor and direct cycling
+commands cannot overwrite the rollback state while the picker is open. Preview
+failures attempt to restore the starting wallpapers; if restoration fails, the
+picker reports the error so you can retry cancellation. Disconnecting the worker's
+input or terminating it normally also attempts restoration. A force-kill, crash,
+or power loss cannot guarantee restoration; close the picker before updating.
+
+Noctalia's wallpaper-set command persists changes and may regenerate its theme
+while previewing. Cancelling sends the original paths back; it does not suppress
+Noctalia's normal theme side effects. Original files must remain readable for
+restoration. Outputs disconnected during preview are skipped during rollback.
+
+Failed applications keep the previous remembered selection. On backends without
+live preview, a partial multi-output failure can leave some outputs changed;
 Hunu reports the error and does not claim that selection succeeded.
 
 ## Run manually

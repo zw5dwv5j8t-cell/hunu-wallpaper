@@ -25,12 +25,18 @@ PAIRS=("$@")
 source "$SCRIPT_DIR/cache-path.sh"
 APPLY_CACHE="$(hunu_cache_directory)"
 mkdir -p -- "$APPLY_CACHE"
-exec 8>"$APPLY_CACHE/wallpaper-apply.lock"
+# A preview session can pass its already-held lock through to this child.
+if [[ "${HUNU_APPLY_LOCK_FD:-}" =~ ^[0-9]+$ ]] &&
+   [[ "/proc/self/fd/$HUNU_APPLY_LOCK_FD" -ef "$APPLY_CACHE/wallpaper-apply.lock" ]]; then
+    exec 8>&"$HUNU_APPLY_LOCK_FD"
+else
+    exec 8>"$APPLY_CACHE/wallpaper-apply.lock"
+fi
 flock -n 8 || die "Another wallpaper Apply is in progress. Try again."
 
 record_success() {
     local status=$?
-    if (( status == 0 )); then
+    if (( status == 0 )) && [[ "${HUNU_PREVIEW_ONLY:-0}" != 1 ]]; then
         python3 "$SCRIPT_DIR/switcher-controller.py" record "${PAIRS[@]}" ||
             printf 'Warning: Could not remember the applied set.\n' >&2
     fi

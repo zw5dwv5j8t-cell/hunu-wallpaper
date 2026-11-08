@@ -20,7 +20,7 @@ def png(path, width, height):
                      + chunk(b'IDAT', zlib.compress((b'\0' + b'\0' * width * 3) * height)) + chunk(b'IEND', b''))
 
 
-class SwitcherTests(unittest.TestCase):
+class SwitcherFixture(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -76,6 +76,8 @@ class SwitcherTests(unittest.TestCase):
     def calls(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
 
+
+class SwitcherTests(SwitcherFixture):
     def test_hides_two_monitor_sets_for_three_monitor_layout(self):
         self.make_set('two', 2)
         self.make_set('three')

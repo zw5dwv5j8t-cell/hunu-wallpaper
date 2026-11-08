@@ -22,7 +22,15 @@ PanelWindow {
     property string backend: ""
     property string errorText: ""
     readonly property var selectedSet: sets.length ? sets[selectedIndex] : null
-    readonly property bool busy: loader.running || applyProcess.running
+    property bool initialized: false
+    property bool liveEnabled: false
+    property string liveReason: ""
+    property string intent: ""
+    property string inFlight: ""
+    property string queuedName: ""
+    property string previewedName: ""
+    property bool normalExit: false
+    readonly property bool busy: !initialized || intent !== ""
 
     function helper(name) {
         return decodeURIComponent(Qt.resolvedUrl(name).toString().replace("file://", ""))
@@ -31,72 +39,124 @@ PanelWindow {
         if (!busy && sets.length)
             selectedIndex = (selectedIndex + step + sets.length) % sets.length
     }
+    function schedulePreview() {
+        if (initialized && liveEnabled && selectedSet && intent === "") {
+            queuedName = selectedSet.name
+            debounce.restart()
+        }
+    }
+    onSelectedSetChanged: schedulePreview()
+    function dispatch() {
+        if (!initialized || !sessionProcess.running || inFlight !== "")
+            return
+        let action = intent
+        let name = selectedSet ? selectedSet.name : ""
+        if (action === "") {
+            if (!liveEnabled || queuedName === "" || queuedName === previewedName) {
+                queuedName = ""
+                return
+            }
+            action = "preview"
+            name = queuedName
+            queuedName = ""
+        }
+        inFlight = action
+        sessionProcess.write(JSON.stringify({action: action, name: name}) + "\n")
+    }
     function confirm() {
         if (busy || !selectedSet)
             return
-        errorText = ""
-        applyProcess.command = ["python3", helper("switcher-controller.py"), "apply", selectedSet.name]
-        applyProcess.running = true
+        intent = "commit"
+        queuedName = ""
+        debounce.stop()
+        dispatch()
     }
-    onClosed: Qt.quit()
+    function cancel() {
+        if (intent === "commit")
+            return
+        if (!initialized || !sessionProcess.running) {
+            Qt.quit()
+            return
+        }
+        intent = "cancel"
+        queuedName = ""
+        debounce.stop()
+        dispatch()
+    }
+    function receive(line) {
+        let result
+        try { result = JSON.parse(line) }
+        catch (error) { errorText = "Could not read preview session response."; return }
+        if (result.event === "ready") {
+            sets = result.sets
+            monitorLayout = result.layout
+            hiddenCount = result.hidden
+            backend = result.backend
+            liveEnabled = result.liveEnabled
+            liveReason = result.liveReason
+            const focusedScreen = Quickshell.screens.find(function(s) { return s.name === result.focusedOutput })
+            if (focusedScreen)
+                screen = focusedScreen
+            const index = sets.findIndex(function(s) { return s.name === result.current })
+            selectedIndex = Math.max(0, index)
+            previewedName = result.current
+            initialized = true
+            visible = true
+            controls.forceActiveFocus()
+            return
+        }
+        inFlight = ""
+        if (result.event === "committed" || result.event === "cancelled") {
+            normalExit = true
+            Qt.quit()
+            return
+        }
+        if (result.event === "previewed") {
+            previewedName = result.name
+            errorText = ""
+        } else if (result.event === "error") {
+            errorText = result.message
+            previewedName = ""
+            if (result.action === "commit" || result.action === "cancel") {
+                intent = ""
+                visible = true
+                controls.forceActiveFocus()
+            }
+        }
+        if (intent !== "")
+            dispatch()
+        else if (queuedName !== "")
+            debounce.restart()
+    }
+    onClosed: cancel()
     Component.onCompleted: {
-        loader.command = ["python3", helper("switcher-controller.py"), "list"]
-        loader.running = true
-        controls.forceActiveFocus()
+        sessionProcess.command = ["python3", helper("switcher-controller.py"), "session"]
+        sessionProcess.running = true
     }
-
+    Timer { id: debounce; interval: 160; onTriggered: picker.dispatch() }
     IpcHandler {
         target: "picker"
         function next(): void { picker.move(1) }
     }
     Process {
-        id: loader
+        id: sessionProcess
+        stdinEnabled: true
         property string errorOutput: ""
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const result = JSON.parse(text)
-                    picker.sets = result.sets
-                    picker.monitorLayout = result.layout
-                    picker.hiddenCount = result.hidden
-                    picker.backend = result.backend
-                    const focusedScreen = Quickshell.screens.find(function(s) {
-                        return s.name === result.focusedOutput
-                    })
-                    if (focusedScreen)
-                        picker.screen = focusedScreen
-                    const index = picker.sets.findIndex(function(s) { return s.name === result.current })
-                    picker.selectedIndex = Math.max(0, index)
-                } catch (error) {
-                    picker.errorText = "Could not load saved wallpapers."
-                }
+        stdout: SplitParser { onRead: data => picker.receive(data) }
+        stderr: StdioCollector { onStreamFinished: sessionProcess.errorOutput = text.trim() }
+        onExited: function(code) {
+            if (!picker.normalExit) {
+                picker.errorText = errorOutput || "The preview session ended. Close and reopen the switcher."
+                picker.initialized = false
+                picker.visible = true
             }
-        }
-        stderr: StdioCollector { onStreamFinished: loader.errorOutput = text.trim() }
-        onExited: function(code) {
-            if (code !== 0)
-                picker.errorText = errorOutput || "Could not load saved wallpapers."
-            picker.visible = true
-            controls.forceActiveFocus()
-        }
-    }
-    Process {
-        id: applyProcess
-        property string errorOutput: ""
-        stdout: StdioCollector {}
-        stderr: StdioCollector { onStreamFinished: applyProcess.errorOutput = text.trim() }
-        onExited: function(code) {
-            if (code === 0)
-                Qt.quit()
-            else
-                picker.errorText = errorOutput || "Apply failed. Reopen the switcher to refresh the layout."
         }
     }
 
     MouseArea {
         anchors.fill: parent
-        enabled: !applyProcess.running
-        onClicked: Qt.quit()
+        enabled: picker.intent !== "commit"
+        onClicked: picker.cancel()
     }
 
     Item {
@@ -119,8 +179,8 @@ PanelWindow {
                     picker.move(-1)
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                     picker.confirm()
-                } else if (event.key === Qt.Key_Escape && !applyProcess.running) {
-                    Qt.quit()
+                } else if (event.key === Qt.Key_Escape) {
+                    picker.cancel()
                 } else {
                     return
                 }
@@ -148,35 +208,30 @@ PanelWindow {
                     visible: picker.sets.length > 0
                 }
                 Label {
+                    horizontalAlignment: Text.AlignHCenter
                     Layout.fillWidth: true
                     Layout.fillHeight: !picker.sets.length
                     visible: !picker.sets.length
                     verticalAlignment: Text.AlignVCenter
-                    horizontalAlignment: Text.AlignHCenter
-                    text: loader.running ? "Loading saved wallpapers…" : "No saved wallpaper sets match this monitor layout."
+                    text: !picker.initialized ? "Loading saved wallpapers…" : "No saved wallpaper sets match this monitor layout."
                     color: "white"
                     style: Text.Outline
                     styleColor: "#aa000000"
                     wrapMode: Text.WordWrap
                 }
-                RowLayout {
-                    Label {
-                        Layout.fillWidth: true
-                        text: picker.selectedSet ? picker.selectedSet.title : ""
-                        color: "white"
-                        style: Text.Outline
-                        styleColor: "#aa000000"
-                        font.pixelSize: 18
-                        elide: Text.ElideMiddle
-                    }
-                    Label {
-                        text: picker.sets.length ? (picker.selectedIndex + 1) + " / " + picker.sets.length : ""
-                        color: "white"
-                        style: Text.Outline
-                        styleColor: "#aa000000"
-                    }
+                Label {
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.fillWidth: true
+                    text: picker.selectedSet ? picker.selectedSet.title
+                        + "   ·   " + (picker.selectedIndex + 1) + " / " + picker.sets.length : ""
+                    color: "white"
+                    style: Text.Outline
+                    styleColor: "#aa000000"
+                    font.pixelSize: 18
+                    elide: Text.ElideMiddle
                 }
                 Label {
+                    horizontalAlignment: Text.AlignHCenter
                     Layout.fillWidth: true
                     visible: picker.selectedSet !== null && !picker.selectedSet.previewIsSource
                     text: "Crop preview · Regenerate this set for a full-image preview"
@@ -187,7 +242,8 @@ PanelWindow {
                 }
                 ListView {
                     id: filmstrip
-                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: Math.min(contentWidth, card.width)
                     Layout.preferredHeight: 88
                     orientation: ListView.Horizontal
                     spacing: 14
@@ -228,11 +284,11 @@ PanelWindow {
                                 picker.selectedIndex = thumbnail.index
                                 controls.forceActiveFocus()
                             }
-                            onDoubleClicked: picker.confirm()
                         }
                     }
                 }
                 Label {
+                    horizontalAlignment: Text.AlignHCenter
                     Layout.fillWidth: true
                     visible: picker.errorText !== ""
                     text: picker.errorText
@@ -241,42 +297,46 @@ PanelWindow {
                     styleColor: "#aa000000"
                     wrapMode: Text.WordWrap
                 }
+                Label {
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.fillWidth: true
+                    text: picker.intent === "cancel" ? "Restoring your previous wallpaper…"
+                        : picker.intent === "commit" ? "Keeping this wallpaper…"
+                        : picker.inFlight === "preview" ? "Previewing on your desktop…"
+                        : picker.liveEnabled ? "← / → Live preview · Enter Keep · Esc Restore previous"
+                        : "← / → Browse · Enter Apply · Esc Cancel"
+                    color: "white"
+                    style: Text.Outline
+                    styleColor: "#aa000000"
+                    font.pixelSize: 12
+                }
+                Label {
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.fillWidth: true
+                    visible: picker.liveReason !== "" || picker.hiddenCount > 0
+                    text: picker.liveReason + (picker.hiddenCount
+                        ? (picker.liveReason ? "\n" : "") + picker.hiddenCount + " incompatible or incomplete sets hidden" : "")
+                    color: "white"
+                    style: Text.Outline
+                    styleColor: "#aa000000"
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
                 RowLayout {
-                    Label {
-                        Layout.fillWidth: true
-                        text: "← / → Preview · Enter Apply · Esc Cancel"
-                            + (picker.hiddenCount ? "\n" + picker.hiddenCount + " incompatible or incomplete sets hidden" : "")
-                        color: "white"
-                        style: Text.Outline
-                        styleColor: "#aa000000"
-                        font.pixelSize: 12
-                    }
-                    Button {
-                        focusPolicy: Qt.NoFocus
-                        flat: true
-                        palette.buttonText: "white"
-                        background: Rectangle { color: "#44000000"; radius: 8 }
-                        text: "‹"
-                        enabled: !picker.busy && picker.sets.length > 1
-                        onClicked: picker.move(-1)
-                    }
-                    Button {
-                        focusPolicy: Qt.NoFocus
-                        flat: true
-                        palette.buttonText: "white"
-                        background: Rectangle { color: "#44000000"; radius: 8 }
-                        text: "›"
-                        enabled: !picker.busy && picker.sets.length > 1
-                        onClicked: picker.move(1)
-                    }
-                    Button {
-                        focusPolicy: Qt.NoFocus
-                        flat: true
-                        palette.buttonText: "white"
-                        background: Rectangle { color: "#44000000"; radius: 8 }
-                        text: applyProcess.running ? "Applying…" : "Apply"
-                        enabled: !picker.busy && picker.selectedSet !== null
-                        onClicked: picker.confirm()
+                    Layout.alignment: Qt.AlignHCenter
+                    Repeater {
+                        model: ["‹", "›"]
+                        delegate: Button {
+                            required property int index
+                            required property string modelData
+                            focusPolicy: Qt.NoFocus
+                            flat: true
+                            palette.buttonText: "white"
+                            background: Rectangle { color: "#44000000"; radius: 8 }
+                            text: modelData
+                            enabled: !picker.busy && picker.sets.length > 1
+                            onClicked: picker.move(index === 0 ? -1 : 1)
+                        }
                     }
                 }
             }

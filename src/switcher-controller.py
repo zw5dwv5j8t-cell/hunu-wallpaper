@@ -5,6 +5,8 @@ import fcntl
 import importlib.util
 import json
 import os
+import shutil
+import signal
 from pathlib import Path
 import struct
 import subprocess
@@ -123,11 +125,137 @@ def apply(item, backend):
     subprocess.run(['bash', str(HERE / 'apply-wallpapers.sh'), '--backend', backend, *pairs], check=True)
 
 
+class SessionStopped(BaseException):
+    pass
+
+
+class PreviewSession:
+    """One picker transaction: capture, temporarily apply, then commit or restore."""
+    def __init__(self, lock):
+        self.lock = lock
+        self.backend = ''
+        self.original = {}
+        self.dirty = False
+        self.committed = False
+
+    def capture(self, result):
+        self.backend = result['backend']
+        if self.backend != 'noctalia' or not shutil.which('noctalia'):
+            return False, 'Live preview needs a backend with readable current wallpapers; Enter still applies.'
+        try:
+            for output in result['layout']:
+                reply = subprocess.run(['noctalia', 'msg', 'wallpaper-get', output],
+                                       capture_output=True, text=True, check=True, timeout=5)
+                path = Path(reply.stdout.strip()).expanduser()
+                if not path.is_absolute() or not path.is_file():
+                    raise ValueError(f'Current wallpaper for {output} is not a readable file.')
+                self.original[output] = str(path.resolve())
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            self.original = {}
+            return False, f'Live preview unavailable: {error} Enter still applies.'
+        return True, ''
+
+    def apply_pairs(self, pairs):
+        env = dict(os.environ, HUNU_PREVIEW_ONLY='1', HUNU_APPLY_LOCK_FD=str(self.lock.fileno()))
+        result = subprocess.run(['bash', str(HERE / 'apply-wallpapers.sh'), '--backend', self.backend, *pairs],
+                                env=env, pass_fds=(self.lock.fileno(),), capture_output=True, text=True)
+        if result.returncode:
+            raise ValueError(result.stderr.strip() or 'Wallpaper Apply failed.')
+
+    def select(self, name, commit=False):
+        result = listing()
+        if result['backend'] != self.backend:
+            raise ValueError('Apply backend changed. Cancel and reopen the picker.')
+        item = next((s for s in result['sets'] if s['name'] == name), None)
+        if item is None:
+            raise ValueError('This set no longer matches the active layout.')
+        pairs = [value for row in item['monitors'] for value in (row['output'], row['file'])]
+        # Mark dirty before the first output, since a backend can fail halfway.
+        self.dirty = bool(self.original)
+        try:
+            self.apply_pairs(pairs)
+            if commit:
+                remember(pairs)
+                self.committed = True
+                self.dirty = False
+        except (OSError, ValueError, subprocess.SubprocessError):
+            self.restore()
+            raise
+
+    def restore(self):
+        if not self.dirty:
+            return
+        monitors, _ = active_monitors()
+        pairs = [value for output, path in self.original.items() if output in monitors
+                 for value in (output, path)]
+        if pairs:
+            self.apply_pairs(pairs)
+        self.dirty = False
+
+
+def run_session():
+    def send(event, **values):
+        print(json.dumps(dict(event=event, **values)), flush=True)
+
+    def stop(_signal, _frame):
+        raise SessionStopped()
+
+    path = state_path().with_name('wallpaper-apply.lock')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError('Another wallpaper Apply or picker session is in progress.')
+        session = PreviewSession(lock)
+        signal.signal(signal.SIGTERM, stop)
+        signal.signal(signal.SIGINT, stop)
+        try:
+            result = listing()
+            live, reason = session.capture(result)
+            if live:
+                result['current'] = next((s['name'] for s in result['sets'] if
+                    {row['output']: str(Path(row['file']).resolve()) for row in s['monitors']} == session.original), '')
+            send('ready', **result, liveEnabled=live, liveReason=reason)
+            for line in sys.stdin:
+                action = ''
+                try:
+                    request = json.loads(line)
+                    action = request['action']
+                    if action == 'cancel':
+                        session.restore()
+                        send('cancelled')
+                        return
+                    if action not in ('preview', 'commit'):
+                        raise ValueError('Unknown picker action.')
+                    if action == 'preview' and not live:
+                        raise ValueError(reason)
+                    name = request['name']
+                    session.select(name, commit=action == 'commit')
+                    send('committed' if action == 'commit' else 'previewed', name=name)
+                    if action == 'commit':
+                        return
+                except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+                    send('error', action=action, message=str(error))
+        except SessionStopped:
+            pass
+        finally:
+            # EOF or normal termination of the picker is cancellation too.
+            # Ignore a second TERM while restoring; SIGKILL cannot be recovered.
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            if not session.committed:
+                session.restore()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['list', 'apply', 'next', 'previous', 'record'])
+    parser.add_argument('action', choices=['list', 'apply', 'next', 'previous', 'record', 'session'])
     parser.add_argument('arguments', nargs='*')
     args = parser.parse_args()
+    if args.action == 'session':
+        run_session()
+        return
     if args.action == 'record':
         if not args.arguments or len(args.arguments) % 2:
             raise ValueError('Expected output/file pairs.')
