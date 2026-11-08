@@ -132,6 +132,24 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertEqual(len(writes), 2, 'Enter must wait for the current Apply')
             receive(dict(event='previewed', name='First'))
             self.assertEqual(writes[-1], dict(action='commit', name='Third'))
+            # Icon buttons are larger, have no text, and share keyboard actions.
+            root.setProperty('intent', '')
+            root.setProperty('inFlight', '')
+            apply_button = find_visual(root.contentItem(), 'applyButton')
+            cancel_button = find_visual(root.contentItem(), 'cancelButton')
+            for button in [apply_button, cancel_button, find_visual(root.contentItem(), 'previousButton'),
+                           find_visual(root.contentItem(), 'nextButton')]:
+                self.assertGreaterEqual(button.width(), 64)
+                self.assertGreaterEqual(button.height(), 64)
+                self.assertEqual(button.property('text'), '')
+            point = apply_button.mapToScene(QPointF(32, 32)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            self.assertEqual(writes[-1], dict(action='commit', name='Third'))
+            root.setProperty('intent', '')
+            root.setProperty('inFlight', '')
+            point = cancel_button.mapToScene(QPointF(32, 32)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            self.assertEqual(writes[-1]['action'], 'cancel')
             # Independently verify that Escape waits for a restoration reply.
             root.setProperty('intent', '')
             root.setProperty('inFlight', '')

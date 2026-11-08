@@ -21,6 +21,7 @@ PanelWindow {
     property int hiddenCount: 0
     property string backend: ""
     property string errorText: ""
+    onErrorTextChanged: { if (errorText !== "") console.warn(errorText) }
     readonly property var selectedSet: sets.length ? sets[selectedIndex] : null
     property bool initialized: false
     property bool liveEnabled: false
@@ -152,6 +153,9 @@ PanelWindow {
             if (!picker.normalExit) {
                 picker.errorText = errorOutput || "The preview session ended. Close and reopen the switcher."
                 picker.initialized = false
+                picker.inFlight = ""
+                picker.intent = ""
+                picker.queuedName = ""
                 picker.visible = true
             }
         }
@@ -250,6 +254,9 @@ PanelWindow {
                     Image {
                         id: fullPreview
                         objectName: "currentPreview"
+                        Accessible.name: picker.selectedSet ? picker.selectedSet.title : "Wallpaper preview"
+                        Accessible.description: picker.selectedSet && !picker.selectedSet.previewIsSource
+                            ? "Monitor crop preview; regenerate this set for a full-image preview" : "Full source preview"
                         anchors.centerIn: parent
                         width: carousel.hasNeighbors ? carousel.width * 0.62 : carousel.width
                         height: carousel.height
@@ -267,92 +274,119 @@ PanelWindow {
                         }
                     }
                 }
-                Label {
-                    horizontalAlignment: Text.AlignHCenter
+                Item {
                     Layout.fillWidth: true
-                    Layout.fillHeight: !picker.sets.length
-                    visible: !picker.sets.length
-                    verticalAlignment: Text.AlignVCenter
-                    text: !picker.initialized ? "Loading saved wallpapers…" : "No saved wallpaper sets match this monitor layout."
-                    color: "white"
-                    style: Text.Outline
-                    styleColor: "#aa000000"
-                    wrapMode: Text.WordWrap
-                }
-                Label {
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.fillWidth: true
-                    text: picker.selectedSet ? picker.selectedSet.title
-                        + "   ·   " + (picker.selectedIndex + 1) + " / " + picker.sets.length : ""
-                    color: "white"
-                    style: Text.Outline
-                    styleColor: "#aa000000"
-                    font.pixelSize: 18
-                    elide: Text.ElideMiddle
-                }
-                Label {
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.fillWidth: true
-                    visible: picker.selectedSet !== null && !picker.selectedSet.previewIsSource
-                    text: "Crop preview · Regenerate this set for a full-image preview"
-                    color: "white"
-                    style: Text.Outline
-                    styleColor: "#aa000000"
-                    font.pixelSize: 12
-                }
-                Label {
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.fillWidth: true
-                    visible: picker.errorText !== ""
-                    text: picker.errorText
-                    color: "white"
-                    style: Text.Outline
-                    styleColor: "#aa000000"
-                    wrapMode: Text.WordWrap
-                }
-                Label {
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.fillWidth: true
-                    text: picker.intent === "cancel" ? "Restoring your previous wallpaper…"
-                        : picker.intent === "commit" ? "Keeping this wallpaper…"
-                        : picker.inFlight === "preview" ? "Previewing on your desktop…"
-                        : picker.liveEnabled ? "← / → Live preview · Enter Keep · Esc Restore previous"
-                        : "← / → Browse · Enter Apply · Esc Cancel"
-                    color: "white"
-                    style: Text.Outline
-                    styleColor: "#aa000000"
-                    font.pixelSize: 12
-                }
-                Label {
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.fillWidth: true
-                    visible: picker.liveReason !== "" || picker.hiddenCount > 0
-                    text: picker.liveReason + (picker.hiddenCount
-                        ? (picker.liveReason ? "\n" : "") + picker.hiddenCount + " incompatible or incomplete sets hidden" : "")
-                    color: "white"
-                    style: Text.Outline
-                    styleColor: "#aa000000"
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
+                    Layout.preferredHeight: 32
+                    Accessible.name: picker.errorText || picker.liveReason
+                        || (!picker.sets.length && picker.initialized ? "No compatible wallpaper sets" : "")
+                    BusyIndicator {
+                        anchors.centerIn: parent
+                        implicitWidth: 30
+                        implicitHeight: 30
+                        running: (!picker.initialized && picker.errorText === "")
+                            || picker.inFlight !== "" || picker.intent !== ""
+                        visible: running
+                    }
+                    PickerIcon {
+                        anchors.centerIn: parent
+                        width: 28
+                        height: 28
+                        symbol: picker.errorText !== "" ? "warning" : "empty"
+                        iconColor: "#e5bf7c"
+                        visible: picker.inFlight === "" && picker.intent === ""
+                            && (picker.errorText !== "" || (picker.initialized && !picker.sets.length))
+                    }
                 }
                 RowLayout {
                     Layout.alignment: Qt.AlignHCenter
-                    Repeater {
-                        model: ["‹", "›"]
-                        delegate: Button {
-                            required property int index
-                            required property string modelData
-                            focusPolicy: Qt.NoFocus
-                            flat: true
-                            palette.buttonText: "white"
-                            background: Rectangle { color: "#44000000"; radius: 8 }
-                            text: modelData
-                            enabled: !picker.busy && picker.sets.length > 1
-                            onClicked: picker.move(index === 0 ? -1 : 1)
-                        }
+                    spacing: 14
+                    IconButton {
+                        objectName: "previousButton"
+                        symbol: "previous"
+                        actionName: "Previous wallpaper"
+                        enabled: !picker.busy && picker.sets.length > 1
+                        onClicked: picker.move(-1)
+                    }
+                    IconButton {
+                        objectName: "nextButton"
+                        symbol: "next"
+                        actionName: "Next wallpaper"
+                        enabled: !picker.busy && picker.sets.length > 1
+                        onClicked: picker.move(1)
+                    }
+                    IconButton {
+                        objectName: "applyButton"
+                        symbol: "apply"
+                        actionName: "Keep wallpaper (Enter)"
+                        enabled: !picker.busy && picker.selectedSet !== null
+                        onClicked: picker.confirm()
+                    }
+                    IconButton {
+                        objectName: "cancelButton"
+                        symbol: "cancel"
+                        actionName: "Cancel and restore previous wallpaper (Escape)"
+                        enabled: picker.intent !== "commit"
+                        onClicked: picker.cancel()
                     }
                 }
             }
+        }
+    }
+
+    // Draw icons ourselves so controls don't depend on a particular icon font.
+    component PickerIcon: Canvas {
+        property string symbol: ""
+        property color iconColor: "white"
+        onSymbolChanged: requestPaint()
+        onIconColorChanged: requestPaint()
+        onPaint: {
+            const ctx = getContext("2d")
+            ctx.reset()
+            ctx.scale(width / 32, height / 32)
+            ctx.strokeStyle = iconColor
+            ctx.lineWidth = 2.6
+            ctx.lineCap = "round"
+            ctx.lineJoin = "round"
+            ctx.beginPath()
+            if (symbol === "previous") {
+                ctx.moveTo(20, 7); ctx.lineTo(11, 16); ctx.lineTo(20, 25)
+            } else if (symbol === "next") {
+                ctx.moveTo(12, 7); ctx.lineTo(21, 16); ctx.lineTo(12, 25)
+            } else if (symbol === "apply") {
+                ctx.moveTo(7, 16); ctx.lineTo(13, 22); ctx.lineTo(25, 10)
+            } else if (symbol === "cancel") {
+                ctx.moveTo(9, 9); ctx.lineTo(23, 23)
+                ctx.moveTo(23, 9); ctx.lineTo(9, 23)
+            } else if (symbol === "warning") {
+                ctx.moveTo(16, 4); ctx.lineTo(29, 27); ctx.lineTo(3, 27); ctx.closePath()
+                ctx.moveTo(16, 12); ctx.lineTo(16, 18)
+                ctx.moveTo(16, 23); ctx.lineTo(16, 23.1)
+            } else {
+                ctx.rect(4, 6, 24, 20)
+                ctx.moveTo(5, 24); ctx.lineTo(12, 16); ctx.lineTo(19, 23); ctx.lineTo(23, 18); ctx.lineTo(28, 23)
+                ctx.moveTo(3, 3); ctx.lineTo(29, 29)
+            }
+            ctx.stroke()
+        }
+    }
+    component IconButton: Button {
+        property string symbol: ""
+        property string actionName: ""
+        implicitWidth: 64
+        implicitHeight: 64
+        padding: 16
+        focusPolicy: Qt.NoFocus
+        Accessible.name: actionName
+        Accessible.description: picker.errorText || picker.liveReason
+        background: Rectangle {
+            radius: width / 2
+            color: parent.down ? "#99000000" : parent.hovered ? "#77000000" : "#44000000"
+            border.width: 1
+            border.color: parent.hovered ? "#66ffffff" : "#22ffffff"
+        }
+        contentItem: PickerIcon {
+            symbol: parent.symbol
+            iconColor: parent.enabled ? "white" : "#55ffffff"
         }
     }
 }

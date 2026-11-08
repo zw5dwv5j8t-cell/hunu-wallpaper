@@ -8,6 +8,14 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.14.3
+
+- Remove visible titles, captions, counters, and helper text from the switcher.
+- Add larger 64-pixel icon controls: previous, next, checkmark to keep, and X to
+  cancel/restore. Arrow keys, Enter, and Escape retain their existing actions.
+- Use a spinner for progress and icons for errors/empty results. Controls retain
+  accessible names; error details remain available through accessibility and logs.
+
 ## Changes in v1.14.2
 
 - Replace the bottom thumbnail strip with a three-image carousel: the current
@@ -464,8 +472,8 @@ It does not start Noctalia or any other wallpaper service.
 - Left/Right, Tab/Shift+Tab, the arrow buttons, or clicking a side preview selects a set.
 - Repeating the hotkey advances the existing picker instead of opening another.
 - With native Noctalia, selection changes preview the set on the desktop after
-  400 ms without another selection change. Enter keeps the selection, remembers it, and closes the picker.
-- Escape or clicking outside restores the wallpapers captured on opening, then
+  400 ms without another selection change. Enter or the checkmark keeps the selection, remembers it, and closes the picker.
+- Escape, the X button, or clicking outside restores the wallpapers captured on opening, then
   closes. This also works when those wallpapers were set outside Hunu.
 - Navigation can continue while an Apply is running; only the latest pending set
   is previewed next. Enter and Escape wait for an active Apply to finish.
@@ -477,7 +485,8 @@ Newly generated sets include a `<set>.preview.jpg` file showing the full source
 image at up to 1600×1000 pixels. Keep it with the PNGs and `.hunu.json` when moving
 sets. It is a browsing preview, not a full-resolution source backup. Existing
 sets remain usable; without a preview the picker displays the widest monitor
-crop with a “Crop preview” label. The original source cannot be recovered from
+crop. The full-source/crop distinction is available to accessibility tools; the
+minimal switcher shows no visible caption. The original source cannot be recovered from
 old cropped files; regenerate the set for a full-image preview.
 
 The picker starts on the last successfully applied set when known, otherwise
