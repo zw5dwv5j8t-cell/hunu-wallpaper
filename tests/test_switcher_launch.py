@@ -16,6 +16,7 @@ class SwitcherLaunchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='hunu picker ') as temp:
             base = Path(temp)
             shutil.copy(ROOT / 'src' / 'switcher.sh', base / 'switcher.sh')
+            shutil.copy(ROOT / 'src' / 'switcher-settings.py', base / 'switcher-settings.py')
             client = base / 'quickshell'
             client.write_text('''#!/usr/bin/env python3
 import json, os, pathlib, sys, time
@@ -63,12 +64,15 @@ else:
             install = base / 'config' / 'hunu-picker-test'
             install.mkdir(parents=True)
             (install / 'config.conf').write_text('APPLY_BACKEND=noctalia\n# Keep my setup\n')
+            preferences = '{"enabled":false,"position":"bottom","livePreview":false,"delayMs":750}'
+            (install / 'switcher-settings.json').write_text(preferences)
             for _ in range(2):
                 result = subprocess.run(['bash', str(ROOT / 'install.sh')], cwd=ROOT, env=env,
                                         capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual((install / 'config.conf').read_text(), 'APPLY_BACKEND=noctalia\n# Keep my setup\n')
-            for name in ['Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml']:
+                self.assertEqual((install / 'switcher-settings.json').read_text(), preferences)
+            for name in ['Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'switcher-settings.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml']:
                 self.assertEqual((install / name).read_bytes(), (ROOT / 'src' / name).read_bytes())
             self.assertTrue(os.access(install / 'switcher.sh', os.X_OK))
 

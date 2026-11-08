@@ -17,6 +17,9 @@ HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('saved_sets', HERE / 'list-wallpaper-sets.py')
 saved_sets = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(saved_sets)
+prefs_spec = importlib.util.spec_from_file_location('switcher_prefs', HERE / 'switcher-settings.py')
+switcher_prefs = importlib.util.module_from_spec(prefs_spec)
+prefs_spec.loader.exec_module(switcher_prefs)
 
 
 def state_path():
@@ -117,6 +120,7 @@ def listing():
                     {row['output']: str(Path(row['file']).resolve()) for row in item['monitors']} == last), '')
     return {'sets': sets, 'layout': layout, 'current': current,
             'hidden': len(all_sets) - len(sets), 'backend': values['APPLY_BACKEND'],
+            'switcherSettings': switcher_prefs.load(),
             'focusedOutput': focused, 'outputDirectory': str(Path(values['OUTPUT_DIR']).expanduser().resolve())}
 
 
@@ -144,6 +148,8 @@ class PreviewSession:
         self.backend = result['backend']
         self.names = {item['name'] for item in result['sets']}
         self.directory = Path(result['outputDirectory'])
+        if not result['switcherSettings']['livePreview']:
+            return False, ''
         if self.backend != 'noctalia' or not shutil.which('noctalia'):
             return False, 'Live preview needs a backend with readable current wallpapers; Enter still applies.'
         try:
@@ -266,6 +272,8 @@ def main():
     parser.add_argument('action', choices=['list', 'apply', 'next', 'previous', 'record', 'session'])
     parser.add_argument('arguments', nargs='*')
     args = parser.parse_args()
+    if args.action in ('session', 'apply', 'next', 'previous') and not switcher_prefs.load()['enabled']:
+        raise ValueError('Wallpaper switcher is disabled in Hunu Settings.')
     if args.action == 'session':
         run_session()
         return

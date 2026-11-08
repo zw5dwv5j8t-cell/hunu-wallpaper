@@ -17,3 +17,5 @@ backups/
 
 /src/file-dialog.ini
 /src/file-dialog.ini.lock
+
+/config/switcher-settings.json

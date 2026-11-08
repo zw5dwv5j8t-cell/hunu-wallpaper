@@ -23,6 +23,9 @@ PanelWindow {
     property string errorText: ""
     onErrorTextChanged: { if (errorText !== "") console.warn(errorText) }
     readonly property var selectedSet: sets.length ? sets[selectedIndex] : null
+    property string verticalPosition: "center"
+    property bool showActionButtons: true
+    property int previewDelayMs: 400
     property bool initialized: false
     property bool liveEnabled: false
     property string liveReason: ""
@@ -99,6 +102,10 @@ PanelWindow {
             backend = result.backend
             liveEnabled = result.liveEnabled
             liveReason = result.liveReason
+            const preferences = result.switcherSettings || ({})
+            verticalPosition = preferences.position || "center"
+            previewDelayMs = preferences.delayMs || 400
+            showActionButtons = preferences.showActionButtons !== false
             const focusedScreen = Quickshell.screens.find(function(s) { return s.name === result.focusedOutput })
             if (focusedScreen)
                 screen = focusedScreen
@@ -138,7 +145,7 @@ PanelWindow {
         sessionProcess.command = ["python3", helper("switcher-controller.py"), "session"]
         sessionProcess.running = true
     }
-    Timer { id: debounce; interval: 400; onTriggered: picker.dispatch() }
+    Timer { id: debounce; interval: picker.previewDelayMs; onTriggered: picker.dispatch() }
     IpcHandler {
         target: "picker"
         function next(): void { picker.move(1) }
@@ -169,7 +176,11 @@ PanelWindow {
 
     Item {
         id: card
-        anchors.centerIn: parent
+        objectName: "switcherContent"
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: picker.verticalPosition === "top" ? 32
+            : picker.verticalPosition === "bottom" ? parent.height - height - 32
+            : (parent.height - height) / 2
         width: Math.min(1480, parent.width - 64)
         height: Math.min(720, parent.height - 64)
         // Keep the overlay surface transparent: only images and controls draw.
@@ -314,6 +325,12 @@ PanelWindow {
                         enabled: !picker.busy && picker.sets.length > 1
                         onClicked: picker.move(1)
                     }
+                }
+                RowLayout {
+                    objectName: "actionButtonsRow"
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 14
+                    visible: picker.showActionButtons
                     IconButton {
                         objectName: "applyButton"
                         symbol: "apply"

@@ -8,7 +8,7 @@ import subprocess
 from test_switcher import SwitcherFixture, png
 
 
-class LivePreviewTests(SwitcherFixture):
+class LivePreviewFixture(SwitcherFixture):
     def setUp(self):
         super().setUp()
         self.actual = self.base / 'current.json'
@@ -77,6 +77,8 @@ elif args[1]=='wallpaper-set':
         path = self.base / 'cache' / 'hunu-test' / 'last-applied.json'
         return path.read_bytes() if path.exists() else None
 
+
+class LivePreviewTests(LivePreviewFixture):
     def test_cancel_restores_external_wallpapers_and_does_not_save_preview(self):
         pairs = [value for i in range(1, 4) for value in (f'DP-{i}', str(self.output / f'first_{"abc"[i-1]}.png'))]
         self.assertEqual(self.run_controller('record', *pairs).returncode, 0)

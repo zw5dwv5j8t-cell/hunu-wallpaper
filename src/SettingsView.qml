@@ -11,6 +11,82 @@ Dialog {
     property var dependencyAvailability: ({})
     property string dependencyError: ""
 
+    property bool switcherEnabled: true
+    property string switcherPosition: "center"
+    property bool switcherShowButtons: true
+    property bool switcherLivePreview: true
+    property int switcherDelayMs: 400
+    property bool switcherDirty: false
+    property string switcherMessage: ""
+    property string switcherError: ""
+    readonly property bool switcherEditable: !switcherLoad.running && !switcherSave.running && !workspace.busy
+
+    function switcherHelper() {
+        return decodeURIComponent(Qt.resolvedUrl("switcher-settings.py").toString().replace("file://", ""))
+    }
+    function readSwitcherValues(text) {
+        const values = JSON.parse(text)
+        switcherEnabled = values.enabled
+        switcherPosition = values.position
+        switcherShowButtons = values.showActionButtons
+        switcherLivePreview = values.livePreview
+        switcherDelayMs = values.delayMs
+        switcherDirty = false
+    }
+    function loadSwitcherSettings() {
+        if (switcherLoad.running || switcherSave.running)
+            return
+        switcherError = ""
+        switcherMessage = ""
+        switcherLoad.command = ["python3", switcherHelper(), "get"]
+        switcherLoad.running = true
+    }
+    function saveSwitcherSettings() {
+        if (!switcherEditable)
+            return
+        switcherError = ""
+        switcherMessage = ""
+        switcherSave.command = ["python3", switcherHelper(), "save", JSON.stringify({
+            enabled: switcherEnabled, position: switcherPosition,
+            livePreview: switcherLivePreview, delayMs: switcherDelayMs, showActionButtons: switcherShowButtons
+        })]
+        switcherSave.running = true
+    }
+    Process {
+        id: switcherLoad
+        property string errorOutput: ""
+        onRunningChanged: if (running) errorOutput = ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { dialog.readSwitcherValues(text) }
+                catch (error) { dialog.switcherError = "Could not read switcher settings." }
+            }
+        }
+        stderr: StdioCollector { onStreamFinished: switcherLoad.errorOutput = text.trim() }
+        onExited: function(code) {
+            if (code !== 0)
+                dialog.switcherError = errorOutput || "Could not load switcher settings."
+        }
+    }
+    Process {
+        id: switcherSave
+        property string errorOutput: ""
+        onRunningChanged: if (running) errorOutput = ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { dialog.readSwitcherValues(text) }
+                catch (error) { dialog.switcherError = "Could not read saved switcher settings." }
+            }
+        }
+        stderr: StdioCollector { onStreamFinished: switcherSave.errorOutput = text.trim() }
+        onExited: function(code) {
+            if (code !== 0)
+                dialog.switcherError = errorOutput || "Could not save switcher settings."
+            else if (dialog.switcherError === "")
+                dialog.switcherMessage = "Saved. Changes apply the next time the switcher opens."
+        }
+    }
+
     property string updateStatus: ""
     property string updateMessage: ""
     property string updateUrl: ""
@@ -81,6 +157,7 @@ Dialog {
     }
 
     onOpened: {
+        loadSwitcherSettings()
         if (!dependencyCheck.running) {
             dependencyAvailability = ({})
             dependencyError = ""
@@ -155,7 +232,7 @@ Dialog {
             spacing: 8
 
             Repeater {
-                model: ["General", "AI Cache", "About"]
+                model: ["General", "Switcher", "AI Cache", "About"]
 
                 delegate: Button {
                     required property int index
@@ -171,6 +248,7 @@ Dialog {
 
         StackLayout {
             id: pages
+            objectName: "settingsPages"
             Layout.fillWidth: true
             Layout.fillHeight: true
 
@@ -238,6 +316,114 @@ Dialog {
                     }
                 }
                 Item { Layout.fillHeight: true }
+            }
+
+            ColumnLayout {
+                spacing: 12
+                ScrollView {
+                    id: switcherScroll
+                    objectName: "switcherSettingsPage"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: availableWidth
+                    ColumnLayout {
+                        width: switcherScroll.availableWidth
+                        spacing: 12
+                        Label {
+                            text: "Wallpaper switcher"
+                            color: Theme.text
+                            font.bold: true
+                        }
+                        CheckBox {
+                            palette.windowText: Theme.text
+                            objectName: "switcherEnabledSetting"
+                            text: "Enable wallpaper switcher"
+                            checked: dialog.switcherEnabled
+                            enabled: dialog.switcherEditable
+                            onToggled: { dialog.switcherEnabled = checked; dialog.switcherDirty = true }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Open the visual picker using your configured hotkey. When disabled, the hotkey does nothing."
+                            color: Theme.subtext
+                            wrapMode: Text.WordWrap
+                        }
+                        Label { text: "Screen position"; color: Theme.text; font.bold: true }
+                        ComboBox {
+                            objectName: "switcherPositionSetting"
+                            property var positions: ["top", "center", "bottom"]
+                            model: ["Top", "Center", "Bottom"]
+                            Layout.preferredWidth: 190
+                            enabled: dialog.switcherEditable && dialog.switcherEnabled
+                            currentIndex: Math.max(0, positions.indexOf(dialog.switcherPosition))
+                            onActivated: function(index) {
+                                dialog.switcherPosition = positions[index]
+                                dialog.switcherDirty = true
+                                currentIndex = Qt.binding(function() { return positions.indexOf(dialog.switcherPosition) })
+                            }
+                        }
+                        CheckBox {
+                            palette.windowText: Theme.text
+                            objectName: "switcherButtonsSetting"
+                            text: "Show apply and cancel buttons"
+                            checked: dialog.switcherShowButtons
+                            enabled: dialog.switcherEditable && dialog.switcherEnabled
+                            onToggled: { dialog.switcherShowButtons = checked; dialog.switcherDirty = true }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Enter and Escape always work, even when these buttons are hidden."
+                            color: Theme.subtext
+                            wrapMode: Text.WordWrap
+                        }
+                        CheckBox {
+                            palette.windowText: Theme.text
+                            objectName: "switcherLivePreviewSetting"
+                            text: "Preview wallpapers on the desktop"
+                            checked: dialog.switcherLivePreview
+                            enabled: dialog.switcherEditable && dialog.switcherEnabled
+                            onToggled: { dialog.switcherLivePreview = checked; dialog.switcherDirty = true }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: "With native Noctalia, browsing changes the desktop temporarily. Enter keeps it; Escape restores the original. When off, only the picker preview changes until you confirm."
+                            color: Theme.subtext
+                            wrapMode: Text.WordWrap
+                        }
+                        Label { text: "Live preview delay (ms)"; color: Theme.text; font.bold: true }
+                        SpinBox {
+                            objectName: "switcherDelaySetting"
+                            from: 100
+                            to: 1500
+                            stepSize: 50
+                            editable: true
+                            value: dialog.switcherDelayMs
+                            enabled: dialog.switcherEditable && dialog.switcherEnabled && dialog.switcherLivePreview
+                            onValueModified: { dialog.switcherDelayMs = value; dialog.switcherDirty = true }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Wait until you pause cycling before changing the desktop. Default: 400 ms."
+                            color: Theme.subtext
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                }
+
+                Button {
+                    objectName: "saveSwitcherSettings"
+                    text: switcherSave.running ? "Saving…" : "Save switcher settings"
+                    enabled: dialog.switcherEditable && dialog.switcherDirty
+                    onClicked: dialog.saveSwitcherSettings()
+                }
+                Label {
+                    Layout.fillWidth: true
+                    visible: dialog.switcherMessage !== "" || dialog.switcherError !== ""
+                    text: dialog.switcherError || dialog.switcherMessage
+                    color: dialog.switcherError ? Theme.text : Theme.success
+                    wrapMode: Text.WordWrap
+                }
             }
 
             ColumnLayout {

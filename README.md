@@ -8,6 +8,16 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.15.0
+
+- Add Settings → Switcher with enable/disable, top/center/bottom position,
+  live desktop preview, preview delay, and apply/cancel button visibility.
+- Put navigation arrows on their own row above apply/cancel. Hide the second row
+  for keyboard-only confirmation; Enter and Escape always remain active.
+- Save per-installation preferences separately from monitor calibration and
+  preserve them across reinstalls. Existing installations retain the current
+  behavior by default.
+
 ## Changes in v1.14.3
 
 - Remove visible titles, captions, counters, and helper text from the switcher.
@@ -130,7 +140,7 @@ Create and preview coordinated wallpapers using the physical arrangement of your
 - Optional Real-ESRGAN AI upscaling at 2×, 3×, or 4×
 - Readable output sets named from the original image, timestamp, and monitor slot
 - Saved monitor setup with first-run configuration
-- Settings dialog with General, AI Cache, and About pages
+- Settings dialog with General, Switcher, AI Cache, and About pages
 - About shows app version, theme provider, and required-command availability
 - Monitor setup rejects duplicate output assignments and discards unsaved edits
 - Optional Apply through Serpantinum, hyprpaper, awww, or Noctalia
@@ -278,6 +288,8 @@ Open **Settings** from the workspace header:
 
 - **General:** choose the wallpaper output folder, select the Apply backend,
   view backend readiness, or open Monitor Setup.
+- **Switcher:** enable the feature, choose Top/Center/Bottom placement, control
+  live preview and its delay, and show or hide apply/cancel buttons.
 - **AI Cache:** view reusable AI image count and size, or clear cached images.
 - **About:** view the app version, theme provider, optional AI availability,
   required-command checks, license, and repository link.
@@ -457,6 +469,23 @@ for use with another wallpaper manager.
 
 ## Wallpaper switcher and hotkeys
 
+Open **Settings → Switcher** in the main app to configure the picker:
+
+- **Enable wallpaper switcher:** off makes its hotkey and direct cycling commands
+  do nothing. The full editor and normal wallpaper Apply keep working.
+- **Screen position:** Top, Center (default), or Bottom of the focused screen.
+- **Show apply and cancel buttons:** show the checkmark/X row beneath the arrow
+  row, or hide it for a cleaner picker. Enter and Escape remain available.
+- **Preview wallpapers on the desktop:** turn live Noctalia preview on or off.
+  When off, browsing changes only the picker image until Enter/checkmark confirms.
+- **Live preview delay:** 100–1500 ms, default 400 ms. Longer values skip more
+  intermediate selections during rapid cycling.
+
+Click **Save switcher settings**. Changes take effect the next time the picker
+opens; close it before changing preferences. Preferences are stored in
+`switcher-settings.json` beside the installed application and survive reinstalling.
+The main app does not add or remove compositor bindings for you.
+
 After installing, bind the separate picker in `~/.config/hypr/hyprland.conf`:
 
 ```ini
@@ -471,8 +500,8 @@ It does not start Noctalia or any other wallpaper service.
 
 - Left/Right, Tab/Shift+Tab, the arrow buttons, or clicking a side preview selects a set.
 - Repeating the hotkey advances the existing picker instead of opening another.
-- With native Noctalia, selection changes preview the set on the desktop after
-  400 ms without another selection change. Enter or the checkmark keeps the selection, remembers it, and closes the picker.
+- With native Noctalia and live preview enabled, selection changes preview the
+  set on the desktop after the configured delay without another selection change. Enter or the checkmark keeps the selection, remembers it, and closes the picker.
 - Escape, the X button, or clicking outside restores the wallpapers captured on opening, then
   closes. This also works when those wallpapers were set outside Hunu.
 - Navigation can continue while an Apply is running; only the latest pending set
