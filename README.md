@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.14.2
+
+- Replace the bottom thumbnail strip with a three-image carousel: the current
+  image is centered, with smaller previous/next previews at its sides.
+- Click a side image to cycle. Only immediate neighbors are loaded; one-set and
+  two-set libraries avoid showing duplicate neighbors.
+- Keyboard navigation, live preview, Enter to keep, and Escape to restore are
+  unchanged.
+
 ## Changes in v1.14.1
 
 - Wait for 400 ms of quiet navigation before sending a desktop preview. New
@@ -452,7 +461,7 @@ windows on a transparent surface. It works while the full Hunu window is closed.
 only while visible and uses the Apply backend selected in Hunu's settings.
 It does not start Noctalia or any other wallpaper service.
 
-- Left/Right, Tab/Shift+Tab, the arrow buttons, or clicking a thumbnail selects a set.
+- Left/Right, Tab/Shift+Tab, the arrow buttons, or clicking a side preview selects a set.
 - Repeating the hotkey advances the existing picker instead of opening another.
 - With native Noctalia, selection changes preview the set on the desktop after
   400 ms without another selection change. Enter keeps the selection, remembers it, and closes the picker.

@@ -17,7 +17,7 @@ class PickerInteractionTests(unittest.TestCase):
     def test_preview_follows_highlight_and_confirmation_waits_for_inflight_apply(self):
         os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
         os.environ.setdefault('QT_QUICK_BACKEND', 'software')
-        from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl, Qt
+        from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl, Qt, QPointF
         from PySide6.QtGui import QGuiApplication
         from PySide6.QtQuick import QQuickWindow  # Registers the Python window wrapper.
         from PySide6.QtQml import QQmlApplicationEngine, QJSValue, qmlRegisterType
@@ -87,7 +87,33 @@ class PickerInteractionTests(unittest.TestCase):
                          liveReason='', focusedOutput='', current='First'))
             root.requestActivate()
             QTest.qWait(100)
-            QTest.keyClick(root, Qt.Key_Right)
+            def find_visual(item, name):
+                if item.objectName() == name:
+                    return item
+                for child in item.childItems():
+                    result = find_visual(child, name)
+                    if result is not None:
+                        return result
+                return None
+
+            previous = find_visual(root.contentItem(), 'previousPreview')
+            following = find_visual(root.contentItem(), 'nextPreview')
+            current = find_visual(root.contentItem(), 'currentPreview')
+            self.assertIsNotNone(previous)
+            self.assertIsNotNone(following)
+            self.assertEqual(previous.property('neighborIndex'), 2, 'Previous must wrap at the first set')
+            self.assertEqual(following.property('neighborIndex'), 1)
+            self.assertGreater(current.property('width'), following.property('width'))
+            root.setProperty('sets', sets[:1])
+            self.assertFalse(previous.property('visible'))
+            self.assertFalse(following.property('visible'))
+            root.setProperty('sets', sets[:2])
+            self.assertFalse(previous.property('visible'), 'Two sets must not duplicate the same neighbor')
+            self.assertTrue(following.property('visible'))
+            root.setProperty('sets', sets)
+            # Side previews must be clickable without confirming the selection.
+            point = following.mapToScene(QPointF(following.width() / 2, following.height() / 2)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
             QTest.qWait(450)
             self.assertEqual(writes, [dict(action='preview', name='Second')])
             # Finishing an old request must not bypass the quiet period for a

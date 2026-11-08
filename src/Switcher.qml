@@ -166,7 +166,7 @@ PanelWindow {
     Item {
         id: card
         anchors.centerIn: parent
-        width: Math.min(1040, parent.width - 64)
+        width: Math.min(1480, parent.width - 64)
         height: Math.min(720, parent.height - 64)
         // Keep the overlay surface transparent: only images and controls draw.
         MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
@@ -193,23 +193,79 @@ PanelWindow {
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 12
-                Image {
-                    id: fullPreview
+                Item {
+                    id: carousel
+                    objectName: "previewCarousel"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    property string failedUrl: ""
-                    source: picker.selectedSet
-                        ? (failedUrl === picker.selectedSet.previewUrl
-                            ? picker.selectedSet.fallbackPreviewUrl : picker.selectedSet.previewUrl) : ""
-                    sourceSize.width: 1600
-                    sourceSize.height: 1000
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    onStatusChanged: {
-                        if (status === Image.Error && picker.selectedSet)
-                            failedUrl = picker.selectedSet.previewUrl
-                    }
                     visible: picker.sets.length > 0
+                    readonly property bool hasNeighbors: picker.sets.length > 1
+
+                    Repeater {
+                        model: [-1, 1]
+                        delegate: Item {
+                            id: neighbor
+                            required property int modelData
+                            readonly property int neighborIndex: picker.sets.length
+                                ? (picker.selectedIndex + modelData + picker.sets.length) % picker.sets.length : -1
+                            readonly property var wallpaperSet: neighborIndex >= 0 ? picker.sets[neighborIndex] : null
+                            objectName: modelData < 0 ? "previousPreview" : "nextPreview"
+                            // With two sets, show the other set once on the right.
+                            visible: picker.sets.length > (modelData < 0 ? 2 : 1)
+                            width: carousel.width * 0.17
+                            height: carousel.height * 0.65
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: modelData < 0 ? 0 : carousel.width - width
+                            Image {
+                                id: neighborImage
+                                anchors.fill: parent
+                                property string failedUrl: ""
+                                source: neighbor.wallpaperSet
+                                    ? (failedUrl === neighbor.wallpaperSet.previewUrl
+                                        ? neighbor.wallpaperSet.fallbackPreviewUrl : neighbor.wallpaperSet.previewUrl) : ""
+                                sourceSize.width: 600
+                                sourceSize.height: 400
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true
+                                opacity: neighborMouse.containsMouse ? 0.85 : 0.55
+                                Behavior on opacity { NumberAnimation { duration: 120 } }
+                                onStatusChanged: {
+                                    if (status === Image.Error && neighbor.wallpaperSet)
+                                        failedUrl = neighbor.wallpaperSet.previewUrl
+                                }
+                            }
+                            MouseArea {
+                                id: neighborMouse
+                                anchors.fill: parent
+                                enabled: !picker.busy
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    picker.move(neighbor.modelData)
+                                    controls.forceActiveFocus()
+                                }
+                            }
+                        }
+                    }
+                    Image {
+                        id: fullPreview
+                        objectName: "currentPreview"
+                        anchors.centerIn: parent
+                        width: carousel.hasNeighbors ? carousel.width * 0.62 : carousel.width
+                        height: carousel.height
+                        property string failedUrl: ""
+                        source: picker.selectedSet
+                            ? (failedUrl === picker.selectedSet.previewUrl
+                                ? picker.selectedSet.fallbackPreviewUrl : picker.selectedSet.previewUrl) : ""
+                        sourceSize.width: 1600
+                        sourceSize.height: 1000
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        onStatusChanged: {
+                            if (status === Image.Error && picker.selectedSet)
+                                failedUrl = picker.selectedSet.previewUrl
+                        }
+                    }
                 }
                 Label {
                     horizontalAlignment: Text.AlignHCenter
@@ -243,53 +299,6 @@ PanelWindow {
                     style: Text.Outline
                     styleColor: "#aa000000"
                     font.pixelSize: 12
-                }
-                ListView {
-                    id: filmstrip
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: Math.min(contentWidth, card.width)
-                    Layout.preferredHeight: 88
-                    orientation: ListView.Horizontal
-                    spacing: 14
-                    clip: true
-                    model: picker.sets
-                    currentIndex: picker.selectedIndex
-                    highlightRangeMode: ListView.ApplyRange
-                    highlightMoveDuration: 100
-                    delegate: Item {
-                        id: thumbnail
-                        required property var modelData
-                        required property int index
-                        width: 142
-                        height: 88
-                        Image {
-                            anchors.fill: parent
-                            anchors.bottomMargin: 8
-                            source: thumbnail.modelData.previewUrl
-                            sourceSize.width: 280
-                            sourceSize.height: 160
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                            opacity: thumbnail.index === picker.selectedIndex ? 1 : 0.65
-                        }
-                        Rectangle {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            anchors.bottom: parent.bottom
-                            width: 32
-                            height: 2
-                            radius: 1
-                            color: "white"
-                            visible: thumbnail.index === picker.selectedIndex
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: !picker.busy
-                            onClicked: {
-                                picker.selectedIndex = thumbnail.index
-                                controls.forceActiveFocus()
-                            }
-                        }
-                    }
                 }
                 Label {
                     horizontalAlignment: Text.AlignHCenter
