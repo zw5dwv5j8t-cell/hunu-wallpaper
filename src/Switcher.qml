@@ -18,7 +18,6 @@ PanelWindow {
     property var sets: []
     property var monitorLayout: ({})
     property int selectedIndex: 0
-    property int navigationDirection: 1
     property int hiddenCount: 0
     property string backend: ""
     property string errorText: ""
@@ -42,7 +41,6 @@ PanelWindow {
     }
     function move(step) {
         if (!busy && sets.length) {
-            navigationDirection = step < 0 ? -1 : 1
             selectedIndex = (selectedIndex + step + sets.length) % sets.length
         }
     }
@@ -241,7 +239,6 @@ PanelWindow {
                                 sourceSize: Qt.size(600, 400)
                                 highlighted: neighborMouse.containsMouse
                                 opacity: neighborMouse.containsMouse ? 0.9 : 0.65
-                                Behavior on opacity { NumberAnimation { duration: 120 } }
                             }
                             MouseArea {
                                 id: neighborMouse
@@ -269,8 +266,6 @@ PanelWindow {
                         fallbackSource: picker.selectedSet ? picker.selectedSet.fallbackPreviewUrl : ""
                         sourceSize: Qt.size(1600, 1000)
                         highlighted: true
-                        animateChanges: true
-                        slideDirection: picker.navigationDirection
                     }
                 }
                 Item {
@@ -347,10 +342,7 @@ PanelWindow {
         property size sourceSize: Qt.size(1600, 1000)
         property bool highlighted: false
         property bool shadowEnabled: true
-        property bool animateChanges: false
-        property int slideDirection: 1
         property string failedUrl: ""
-        property bool hasDrawn: false
         readonly property real aspectRatio: paintedImage.displayedRatio
         onHighlightedChanged: paintedImage.requestPaint()
         onShadowEnabledChanged: paintedImage.requestPaint()
@@ -370,21 +362,11 @@ PanelWindow {
         Item {
             id: imageFrame
             objectName: "roundedImageFrame"
-            property real slideOffset: 0
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: slideOffset
             width: paintedImage.displayedUrl.toString() !== ""
                 ? Math.min(preview.width, preview.height * preview.aspectRatio) : 0
             height: width / Math.max(0.001, preview.aspectRatio)
             readonly property real cornerRadius: Math.min(22, width / 10, height / 10)
-            NumberAnimation {
-                id: slide
-                target: imageFrame
-                property: "slideOffset"
-                to: 0
-                duration: 160
-                easing.type: Easing.OutCubic
-            }
             Canvas {
                 id: paintedImage
                 objectName: "roundedImageCanvas"
@@ -394,7 +376,6 @@ PanelWindow {
                 property url displayedUrl: ""
                 property real displayedRatio: 1
                 property real pendingRatio: 1
-                property bool animationPending: false
                 x: -padding
                 y: -padding
                 width: imageFrame.width + padding * 2
@@ -412,7 +393,6 @@ PanelWindow {
                     const oldUrl = displayedUrl
                     displayedRatio = pendingRatio
                     displayedUrl = imageUrl
-                    animationPending = preview.animateChanges && preview.hasDrawn
                     requestPaint()
                     // Keep the outgoing pixels/cache alive until a decoded
                     // replacement exists. Never clear the visible frame to load.
@@ -433,19 +413,6 @@ PanelWindow {
                 }
                 onImageUrlChanged: reload()
                 onImageLoaded: imageReady()
-                onPainted: {
-                    if (displayedUrl.toString() === "")
-                        return
-                    // Start motion only once the replacement is actually painted;
-                    // decoding/upload time must not consume the animation.
-                    if (animationPending) {
-                        animationPending = false
-                        slide.stop()
-                        imageFrame.slideOffset = preview.slideDirection * 24
-                        slide.start()
-                    }
-                    preview.hasDrawn = true
-                }
                 Component.onCompleted: reload()
                 onPaint: {
                     const ctx = getContext("2d")

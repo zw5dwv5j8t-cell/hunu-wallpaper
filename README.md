@@ -8,6 +8,13 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.15.4
+
+- Remove preview slide and hover animations. Loaded replacements appear directly,
+  with no animation timer or movement.
+- Retain outgoing previews while images load, rounded clipping, borders, and
+  existing live-wallpaper preview delay preferences.
+
 ## Changes in v1.15.3
 
 - Keep all outgoing preview images and frame dimensions visible while replacements

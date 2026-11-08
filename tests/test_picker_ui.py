@@ -199,13 +199,11 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertTrue(portrait.save(str(base / 'portrait.png')))
             portrait_sets = [dict(s) for s in sets]
             portrait_sets[0]['previewUrl'] = (base / 'portrait.png').as_uri()
-            motion = []
-            frame.slideOffsetChanged.connect(lambda: motion.append(frame.property('slideOffset')))
             root.setProperty('sets', portrait_sets)
             QTest.qWait(240)
             self.assertAlmostEqual(frame.width() / frame.height(), 0.5)
-            self.assertTrue(any(abs(offset) > 0.1 for offset in motion), 'A source change should animate')
-            self.assertAlmostEqual(frame.property('slideOffset'), 0)
+            self.assertAlmostEqual(frame.x() + frame.width() / 2, current.width() / 2, delta=0.5)
+            self.assertAlmostEqual(frame.y() + frame.height() / 2, current.height() / 2, delta=0.5)
             assert_clipped(QColor(Qt.GlobalColor.darkGreen))
             self.assertLessEqual(frame.width(), current.width())
             self.assertLessEqual(frame.height(), current.height())
