@@ -6,14 +6,15 @@ Rectangle {
     id: results
     required property var workspace
 
-    radius: 10
+    radius: Theme.radius
     color: Theme.surface
+    border.color: Theme.border
     clip: true
 
     // Keep Cancel usable while the workspace's editing controls are locked.
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 14
+        anchors.margins: 16
         spacing: 14
 
         Flickable {
@@ -26,7 +27,7 @@ Rectangle {
             boundsBehavior: Flickable.StopAtBounds
             flickableDirection: Flickable.VerticalFlick
 
-            ScrollBar.vertical: ScrollBar {
+            ScrollBar.vertical: HunuScrollBar {
                 policy: ScrollBar.AsNeeded
             }
 
@@ -36,6 +37,8 @@ Rectangle {
                 spacing: 3
 
                 ProgressBar {
+                    palette.highlight: Theme.accent
+                    palette.base: Theme.base
                     width: parent.width
                     visible: results.workspace.generating
                     from: 0
@@ -43,7 +46,7 @@ Rectangle {
                     value: Math.max(0, results.workspace.jobProgress)
                     indeterminate: results.workspace.jobProgress < 0
                 }
-                Label {
+                HunuText {
                     width: parent.width
                     visible: results.workspace.generating
                         && results.workspace.jobProgress >= 0
@@ -51,7 +54,7 @@ Rectangle {
                     color: Theme.subtext
                     font.pixelSize: 12
                 }
-                Label {
+                HunuText {
                     width: parent.width
                     text: results.workspace.backendStatus
                     color: results.workspace.backendReady
@@ -59,7 +62,7 @@ Rectangle {
                     font.pixelSize: 12
                     wrapMode: Text.WordWrap
                 }
-                Label {
+                HunuText {
                     width: parent.width
                     text: results.workspace.appliedSavedSet
                         ? results.workspace.statusMessage + " · " + results.workspace.appliedSavedSet.name
@@ -72,23 +75,25 @@ Rectangle {
                     elide: Text.ElideRight
                 }
 
-                Repeater {
-                    model: results.workspace.activeSlots.length
-
-                    delegate: Label {
-                        required property int index
-                        property int slot: results.workspace.activeSlots[index]
-                        width: resultContent.width
-                        visible: !results.workspace.appliedSavedSet && results.workspace.generatedFile[slot] !== ""
-                        text: "Monitor " + slot + " · "
-                            + results.workspace.outputName[slot] + " · "
-                            + results.workspace.generatedFile[slot].split("/").pop()
-                        color: Theme.subtext
-                        elide: Text.ElideRight
-                    }
+                HunuText {
+                    width: parent.width
+                    visible: !results.workspace.appliedSavedSet && results.workspace.activeSlots.some(function(slot) {
+                        return results.workspace.generatedFile[slot] !== ""
+                    })
+                    text: "Saved for " + results.workspace.activeSlots.filter(function(slot) {
+                        return results.workspace.generatedFile[slot] !== ""
+                    }).map(function(slot) { return results.workspace.outputName[slot] }).join(" · ")
+                    color: Theme.subtext
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                    ToolTip.visible: resultFilesHover.containsMouse
+                    ToolTip.text: results.workspace.activeSlots.map(function(slot) {
+                        return results.workspace.outputName[slot] + ": " + results.workspace.generatedFile[slot]
+                    }).join("\n")
+                    MouseArea { id: resultFilesHover; anchors.fill: parent; hoverEnabled: true }
                 }
 
-                Label {
+                HunuText {
                     visible: results.workspace.processError !== ""
                     width: parent.width
                     text: results.workspace.processError
@@ -98,7 +103,7 @@ Rectangle {
             }
         }
 
-        Button {
+        HunuActionButton {
             Layout.preferredWidth: 96
             Layout.minimumWidth: 96
             Layout.maximumWidth: 96
@@ -110,10 +115,12 @@ Rectangle {
             ToolTip.visible: hovered
             ToolTip.text: "Stop generation and clean up unfinished files."
         }
-        Button {
-            Layout.preferredWidth: 112
-            Layout.minimumWidth: 112
-            Layout.maximumWidth: 112
+        HunuActionButton {
+            Layout.preferredWidth: 124
+            Layout.minimumWidth: 124
+            Layout.maximumWidth: 124
+            objectName: "generateWallpapers"
+            glyph: "play"
             text: results.workspace.generating
                 ? results.workspace.jobPhase === "upscale"
                     ? "Upscaling…" : "Generating…"
@@ -124,10 +131,13 @@ Rectangle {
             ToolTip.visible: hovered
             ToolTip.text: "Create one correctly sized wallpaper file for every enabled monitor."
         }
-        Button {
+        HunuActionButton {
             Layout.preferredWidth: 96
             Layout.minimumWidth: 96
             Layout.maximumWidth: 96
+            objectName: "applyWallpapers"
+            primary: true
+            glyph: "check"
             text: results.workspace.applying ? "Applying…" : "Apply"
             enabled: results.workspace.generatedReady()
                 && results.workspace.backendReady

@@ -202,359 +202,285 @@ Dialog {
 
     parent: Overlay.overlay
     anchors.centerIn: parent
-    width: Math.min(720, parent.width - 40)
-    height: Math.min(490, parent.height - 40)
+    width: Math.min(920, parent.width - 40)
+    height: Math.min(680, parent.height - 40)
     modal: true
-    padding: 20
+    padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-    background: Rectangle {
-        color: Theme.base
-        radius: 12
-        border.color: Qt.alpha(Theme.subtext, 0.3)
-    }
-
-    header: Label {
-        text: "Settings"
-        color: Theme.text
-        font.pixelSize: 22
-        font.bold: true
-        padding: 20
-        bottomPadding: 8
-    }
+    font.family: Theme.fontFamily
+    font.pixelSize: 13
+    background: Rectangle { color: Theme.base; radius: 16; border.color: Theme.border }
 
     contentItem: RowLayout {
-        spacing: 24
-
-        ColumnLayout {
-            Layout.preferredWidth: 140
-            Layout.alignment: Qt.AlignTop
-            spacing: 8
-
-            Repeater {
-                model: ["General", "Switcher", "AI Cache", "About"]
-
-                delegate: Button {
-                    required property int index
-                    required property string modelData
-                    Layout.fillWidth: true
-                    text: modelData
-                    checkable: true
-                    checked: pages.currentIndex === index
-                    onClicked: pages.currentIndex = index
-                }
-            }
-        }
-
-        StackLayout {
-            id: pages
-            objectName: "settingsPages"
-            Layout.fillWidth: true
+        spacing: 0
+        Rectangle {
+            Layout.preferredWidth: 180
             Layout.fillHeight: true
-
+            color: "transparent"
+            Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.border }
             ColumnLayout {
-                spacing: 12
-
-                Label {
-                    text: "Wallpaper output folder"
-                    color: Theme.text
-                    font.bold: true
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: dialog.workspace.outputDirectory || "Save monitor setup first"
-                    color: Theme.subtext
-                    wrapMode: Text.WrapAnywhere
-                }
-                Button {
-                    text: "Choose Folder"
-                    enabled: !dialog.workspace.busy
-                        && dialog.workspace.outputDirectory !== ""
-                    onClicked: {
-                        dialog.close()
-                        dialog.chooseOutputFolderRequested()
-                    }
-                }
-
-                Label {
-                    text: "Apply using"
-                    color: Theme.text
-                    font.bold: true
-                    Layout.topMargin: 8
-                }
-                ComboBox {
-                    Layout.preferredWidth: 190
-                    model: ["Serpantinum", "hyprpaper", "awww", "Noctalia"]
-                    enabled: !dialog.workspace.busy
-                    currentIndex: Math.max(0,
-                        dialog.workspace.applyBackendValues.indexOf(
-                            dialog.workspace.applyBackend))
-
-                    onActivated: function(index) {
-                        dialog.workspace.saveApplyBackend(
-                            dialog.workspace.applyBackendValues[index])
-                        currentIndex = Qt.binding(function() {
-                            return Math.max(0,
-                                dialog.workspace.applyBackendValues.indexOf(
-                                    dialog.workspace.applyBackend))
-                        })
-                    }
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: dialog.workspace.backendStatus
-                    color: dialog.workspace.backendReady
-                        ? Theme.success : Theme.subtext
-                    wrapMode: Text.WordWrap
-                }
-                Button {
-                    text: "Monitor Setup"
-                    enabled: !dialog.workspace.busy
-                    onClicked: {
-                        dialog.close()
-                        dialog.monitorSetupRequested()
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 8
+                HunuText { text: "Settings"; font.pixelSize: 24; font.weight: Font.DemiBold; Layout.bottomMargin: 20 }
+                Repeater {
+                    model: ["General", "Switcher", "AI Cache", "About"]
+                    delegate: HunuActionButton {
+                        required property int index
+                        required property string modelData
+                        Layout.fillWidth: true
+                        text: modelData
+                        glyph: ["settings", "image", "cache", "info"][index]
+                        alignLeft: true
+                        flat: true
+                        checked: pages.currentIndex === index
+                        onClicked: pages.currentIndex = index
                     }
                 }
                 Item { Layout.fillHeight: true }
+                HunuText { text: "Hunu  ·  " + AppInfo.version; color: Theme.muted; font.pixelSize: 11 }
             }
-
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 0
             ColumnLayout {
-                spacing: 12
-                ScrollView {
+                Layout.fillWidth: true
+                Layout.leftMargin: 28
+                Layout.rightMargin: 28
+                Layout.topMargin: 26
+                Layout.bottomMargin: 12
+                spacing: 7
+                HunuText {
+                    text: ["General", "Wallpaper switcher", "AI cache", "About Hunu"][pages.currentIndex]
+                    font.pixelSize: 28
+                    font.weight: Font.DemiBold
+                }
+                HunuText {
+                    Layout.fillWidth: true
+                    text: ["Your workspace, outputs, and wallpaper backend.",
+                        "Your saved wallpapers, one shortcut away.",
+                        "Keep reusable upscales. Make room when you need it.",
+                        "A continuous wallpaper, across your whole desk."][pages.currentIndex]
+                    color: Theme.subtext
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                }
+            }
+            StackLayout {
+                id: pages
+                objectName: "settingsPages"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.leftMargin: 28
+                Layout.rightMargin: 28
+                HunuScrollView {
+                    id: generalScroll
+                    clip: true
+                    contentWidth: availableWidth
+                    ColumnLayout {
+                        width: generalScroll.availableWidth
+                        spacing: 0
+                        HunuSettingsRow {
+                            Layout.fillWidth: true
+                            heading: "Wallpaper output folder"
+                            detail: dialog.workspace.outputDirectory || "Save monitor setup first"
+                            HunuActionButton {
+                                text: "Choose Folder"; glyph: "folder"
+                                enabled: !dialog.workspace.busy && dialog.workspace.outputDirectory !== ""
+                                onClicked: { dialog.close(); dialog.chooseOutputFolderRequested() }
+                            }
+                        }
+                        HunuSettingsRow {
+                            Layout.fillWidth: true
+                            heading: "Apply using"
+                            detail: "Choose the service that manages your wallpapers."
+                            HunuComboBox {
+                                objectName: "applyBackendSetting"
+                                Layout.preferredWidth: 180
+                                property var backends: ["serpantinum", "hyprpaper", "awww", "noctalia"]
+                                model: ["Serpantinum", "hyprpaper", "awww", "Noctalia"]
+                                enabled: !dialog.workspace.busy
+                                currentIndex: Math.max(0, backends.indexOf(dialog.workspace.applyBackend))
+                                onActivated: function(index) {
+                                    dialog.workspace.saveApplyBackend(backends[index])
+                                    currentIndex = Qt.binding(function() { return Math.max(0, backends.indexOf(dialog.workspace.applyBackend)) })
+                                }
+                            }
+                        }
+                        HunuText {
+                            Layout.fillWidth: true
+                            Layout.topMargin: 12
+                            text: dialog.workspace.backendStatus
+                            color: dialog.workspace.backendReady ? Theme.accent : Theme.subtext
+                            wrapMode: Text.WordWrap
+                        }
+                        HunuSettingsRow {
+                            Layout.fillWidth: true
+                            heading: "Monitor setup"
+                            detail: "Assign your displays and calibrate physical placement."
+                            divider: false
+                            HunuActionButton {
+                                text: "Configure"; glyph: "monitor"; enabled: !dialog.workspace.busy
+                                onClicked: { dialog.close(); dialog.monitorSetupRequested() }
+                            }
+                        }
+                    }
+                }
+                HunuScrollView {
                     id: switcherScroll
                     objectName: "switcherSettingsPage"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
                     clip: true
                     contentWidth: availableWidth
                     ColumnLayout {
                         width: switcherScroll.availableWidth
-                        spacing: 12
-                        Label {
-                            text: "Wallpaper switcher"
-                            color: Theme.text
-                            font.bold: true
-                        }
-                        CheckBox {
-                            palette.windowText: Theme.text
-                            objectName: "switcherEnabledSetting"
-                            text: "Enable wallpaper switcher"
-                            checked: dialog.switcherEnabled
-                            enabled: dialog.switcherEditable
-                            onToggled: { dialog.switcherEnabled = checked; dialog.switcherDirty = true }
-                        }
-                        Label {
+                        spacing: 0
+                        HunuSettingsRow {
                             Layout.fillWidth: true
-                            text: "Open the visual picker using your configured hotkey. When disabled, the hotkey does nothing."
-                            color: Theme.subtext
-                            wrapMode: Text.WordWrap
-                        }
-                        Label { text: "Screen position"; color: Theme.text; font.bold: true }
-                        ComboBox {
-                            objectName: "switcherPositionSetting"
-                            property var positions: ["top", "center", "bottom"]
-                            model: ["Top", "Center", "Bottom"]
-                            Layout.preferredWidth: 190
-                            enabled: dialog.switcherEditable && dialog.switcherEnabled
-                            currentIndex: Math.max(0, positions.indexOf(dialog.switcherPosition))
-                            onActivated: function(index) {
-                                dialog.switcherPosition = positions[index]
-                                dialog.switcherDirty = true
-                                currentIndex = Qt.binding(function() { return positions.indexOf(dialog.switcherPosition) })
+                            heading: "Enable switcher"
+                            detail: "Open the picker with your configured hotkey."
+                            HunuToggle {
+                                objectName: "switcherEnabledSetting"
+                                Accessible.name: "Enable wallpaper switcher"
+                                checked: dialog.switcherEnabled
+                                enabled: dialog.switcherEditable
+                                onToggled: { dialog.switcherEnabled = checked; dialog.switcherDirty = true }
                             }
                         }
-                        CheckBox {
-                            palette.windowText: Theme.text
-                            objectName: "switcherButtonsSetting"
-                            text: "Show apply and cancel buttons"
-                            checked: dialog.switcherShowButtons
-                            enabled: dialog.switcherEditable && dialog.switcherEnabled
-                            onToggled: { dialog.switcherShowButtons = checked; dialog.switcherDirty = true }
-                        }
-                        Label {
+                        HunuSettingsRow {
                             Layout.fillWidth: true
-                            text: "Enter and Escape always work, even when these buttons are hidden."
-                            color: Theme.subtext
-                            wrapMode: Text.WordWrap
+                            heading: "Screen position"
+                            HunuSegmented {
+                                objectName: "switcherPositionSetting"
+                                property var positions: ["top", "center", "bottom"]
+                                options: ["Top", "Center", "Bottom"]
+                                enabled: dialog.switcherEditable && dialog.switcherEnabled
+                                currentIndex: Math.max(0, positions.indexOf(dialog.switcherPosition))
+                                onSelected: function(index) { dialog.switcherPosition = positions[index]; dialog.switcherDirty = true }
+                            }
                         }
-                        CheckBox {
-                            palette.windowText: Theme.text
-                            objectName: "switcherLivePreviewSetting"
-                            text: "Preview wallpapers on the desktop"
-                            checked: dialog.switcherLivePreview
-                            enabled: dialog.switcherEditable && dialog.switcherEnabled
-                            onToggled: { dialog.switcherLivePreview = checked; dialog.switcherDirty = true }
-                        }
-                        Label {
+                        HunuSettingsRow {
                             Layout.fillWidth: true
-                            text: "With native Noctalia, browsing changes the desktop temporarily. Enter keeps it; Escape restores the original. When off, only the picker preview changes until you confirm."
-                            color: Theme.subtext
-                            wrapMode: Text.WordWrap
+                            heading: "Show confirmation buttons"
+                            detail: "Enter and Escape always work."
+                            HunuToggle {
+                                objectName: "switcherButtonsSetting"
+                                Accessible.name: "Show apply and cancel buttons"
+                                checked: dialog.switcherShowButtons
+                                enabled: dialog.switcherEditable && dialog.switcherEnabled
+                                onToggled: { dialog.switcherShowButtons = checked; dialog.switcherDirty = true }
+                            }
                         }
-                        Label { text: "Live preview delay (ms)"; color: Theme.text; font.bold: true }
-                        SpinBox {
-                            objectName: "switcherDelaySetting"
-                            from: 100
-                            to: 1500
-                            stepSize: 50
-                            editable: true
-                            value: dialog.switcherDelayMs
-                            enabled: dialog.switcherEditable && dialog.switcherEnabled && dialog.switcherLivePreview
-                            onValueModified: { dialog.switcherDelayMs = value; dialog.switcherDirty = true }
-                        }
-                        Label {
+                        HunuSettingsRow {
                             Layout.fillWidth: true
-                            text: "Wait until you pause cycling before changing the desktop. Default: 400 ms."
-                            color: Theme.subtext
-                            wrapMode: Text.WordWrap
+                            heading: "Live desktop preview"
+                            detail: "Preview while browsing. Escape restores your wallpaper."
+                            HunuToggle {
+                                objectName: "switcherLivePreviewSetting"
+                                Accessible.name: "Live desktop preview"
+                                checked: dialog.switcherLivePreview
+                                enabled: dialog.switcherEditable && dialog.switcherEnabled
+                                onToggled: { dialog.switcherLivePreview = checked; dialog.switcherDirty = true }
+                            }
+                        }
+                        HunuSettingsRow {
+                            Layout.fillWidth: true
+                            heading: "Preview delay"
+                            detail: "Wait until you pause cycling."
+                            HunuSpinBox {
+                                objectName: "switcherDelaySetting"
+                                Accessible.name: "Live preview delay in milliseconds"
+                                from: 100; to: 1500; stepSize: 50; editable: true
+                                value: dialog.switcherDelayMs
+                                enabled: dialog.switcherEditable && dialog.switcherEnabled && dialog.switcherLivePreview
+                                onValueModified: { dialog.switcherDelayMs = value; dialog.switcherDirty = true }
+                            }
+                            HunuText { text: "ms"; color: Theme.subtext }
                         }
                     }
                 }
-
-                Button {
+                ColumnLayout {
+                    spacing: 20
+                    HunuSettingsRow {
+                        Layout.fillWidth: true
+                        heading: "Reusable AI images"
+                        detail: !dialog.workspace.cacheChecked ? "Checking cache…"
+                            : (dialog.workspace.cacheBytes / (1024 * 1024)).toFixed(1) + " MiB · "
+                            + dialog.workspace.cacheFiles + " cached images"
+                        HunuActionButton {
+                            text: "Clear AI Cache"
+                            enabled: dialog.workspace.cacheChecked && dialog.workspace.cacheFiles > 0 && !dialog.workspace.busy
+                            onClicked: dialog.workspace.manageCache("clear")
+                        }
+                    }
+                    HunuText {
+                        Layout.fillWidth: true
+                        text: "Cached images speed up repeated generation with the same source and AI settings. Clearing the cache keeps your source images and generated wallpapers."
+                        color: Theme.subtext
+                        wrapMode: Text.WordWrap
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+                HunuScrollView {
+                    id: aboutScroll
+                    clip: true
+                    contentWidth: availableWidth
+                    ColumnLayout {
+                        width: aboutScroll.availableWidth
+                        spacing: 14
+                        HunuText { text: AppInfo.name; font.pixelSize: 20; font.weight: Font.DemiBold }
+                        HunuText { text: "Version " + AppInfo.version + " · " + AppInfo.license + " license"; color: Theme.subtext }
+                        RowLayout {
+                            spacing: 10
+                            HunuActionButton {
+                                text: updateCheck.running ? "Checking…" : "Check for updates"
+                                enabled: !updateCheck.running
+                                onClicked: { dialog.updateStatus = ""; dialog.updateMessage = ""; dialog.updateUrl = ""; updateCheck.running = true }
+                            }
+                            HunuActionButton {
+                                visible: dialog.updateStatus === "available" && dialog.updateUrl !== ""
+                                text: "Open release page"
+                                onClicked: Qt.openUrlExternally(dialog.updateUrl)
+                            }
+                        }
+                        HunuText { Layout.fillWidth: true; visible: dialog.updateMessage !== ""; text: dialog.updateMessage; color: Theme.accent; wrapMode: Text.WordWrap }
+                        HunuSettingsRow {
+                            Layout.fillWidth: true
+                            heading: "Theme"
+                            detail: Theme.usingSystemTheme ? "Serpantinum / Matugen" : "Hunu charcoal"
+                        }
+                        HunuText { Layout.fillWidth: true; text: requiredDependencyStatus; color: Theme.subtext; wrapMode: Text.WordWrap }
+                        HunuText { Layout.fillWidth: true; visible: dependencyError !== ""; text: dependencyError; color: Theme.muted; wrapMode: Text.WordWrap }
+                        HunuText { text: dialog.workspace.upscalerAvailable ? "Real-ESRGAN available" : "Real-ESRGAN not installed (optional)"; color: Theme.subtext }
+                        HunuActionButton { text: "GitHub Repository"; onClicked: Qt.openUrlExternally(AppInfo.repositoryUrl) }
+                    }
+                }
+            }
+            Rectangle { Layout.fillWidth: true; Layout.topMargin: 14; height: 1; color: Theme.border }
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.margins: 22
+                spacing: 12
+                HunuText {
+                    Layout.fillWidth: true
+                    visible: pages.currentIndex === 1
+                    text: dialog.switcherError || dialog.switcherMessage || "Changes apply the next time the switcher opens."
+                    color: dialog.switcherError ? Theme.text : Theme.subtext
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+                Item { Layout.fillWidth: true; visible: pages.currentIndex !== 1 }
+                HunuActionButton {
                     objectName: "saveSwitcherSettings"
-                    text: switcherSave.running ? "Saving…" : "Save switcher settings"
+                    text: switcherSave.running ? "Saving…" : "Save changes"
+                    primary: true
+                    visible: pages.currentIndex === 1
                     enabled: dialog.switcherEditable && dialog.switcherDirty
                     onClicked: dialog.saveSwitcherSettings()
                 }
-                Label {
-                    Layout.fillWidth: true
-                    visible: dialog.switcherMessage !== "" || dialog.switcherError !== ""
-                    text: dialog.switcherError || dialog.switcherMessage
-                    color: dialog.switcherError ? Theme.text : Theme.success
-                    wrapMode: Text.WordWrap
-                }
-            }
-
-            ColumnLayout {
-                spacing: 12
-
-                Label {
-                    text: "Reusable AI images"
-                    color: Theme.text
-                    font.bold: true
-                }
-                Label {
-                    text: !dialog.workspace.cacheChecked
-                        ? "Checking cache…"
-                        : (dialog.workspace.cacheBytes / (1024 * 1024)).toFixed(1)
-                            + " MiB · " + dialog.workspace.cacheFiles
-                            + (dialog.workspace.cacheFiles === 1
-                                ? " image" : " images")
-                    color: Theme.subtext
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: "Cached images speed up repeated generation with the same source and AI settings."
-                    color: Theme.subtext
-                    wrapMode: Text.WordWrap
-                }
-                Button {
-                    text: "Clear AI Cache"
-                    enabled: dialog.workspace.cacheChecked
-                        && dialog.workspace.cacheFiles > 0
-                        && !dialog.workspace.busy
-                    onClicked: dialog.workspace.manageCache("clear")
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: "Source images and generated wallpapers are preserved."
-                    color: Theme.muted
-                    wrapMode: Text.WordWrap
-                }
-                Item { Layout.fillHeight: true }
-            }
-
-            ColumnLayout {
-                spacing: 12
-
-                Label {
-                    text: AppInfo.name
-                    color: Theme.text
-                    font.pixelSize: 20
-                    font.bold: true
-                }
-                Label {
-                    text: "Version " + AppInfo.version
-                    color: Theme.subtext
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Button {
-                        text: updateCheck.running
-                            ? "Checking…" : "Check for updates"
-                        enabled: !updateCheck.running
-                        onClicked: {
-                            dialog.updateStatus = ""
-                            dialog.updateMessage = ""
-                            dialog.updateUrl = ""
-                            updateCheck.running = true
-                        }
-                    }
-
-                    Button {
-                        visible: dialog.updateStatus === "available"
-                            && dialog.updateUrl !== ""
-                        text: "Open release page"
-                        onClicked: Qt.openUrlExternally(dialog.updateUrl)
-                    }
-                }
-
-                Label {
-                    Layout.fillWidth: true
-                    visible: dialog.updateMessage !== ""
-                    text: dialog.updateMessage
-                    color: dialog.updateStatus === "available"
-                        ? Theme.success : Theme.subtext
-                    wrapMode: Text.WordWrap
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: "Create coordinated wallpapers for one to three monitors."
-                    color: Theme.subtext
-                    wrapMode: Text.WordWrap
-                }
-                Label {
-                    text: Theme.usingSystemTheme
-                        ? "Theme: Serpantinum / Matugen"
-                        : "Theme: built-in palette"
-                    color: Theme.text
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: dialog.dependencyError !== ""
-                        ? dialog.dependencyError
-                        : dialog.requiredDependencyStatus
-                    color: Theme.subtext
-                    wrapMode: Text.WordWrap
-                }
-                Label {
-                    text: dialog.workspace.upscalerAvailable
-                        ? "Optional AI upscaling: available"
-                        : "Optional AI upscaling: unavailable"
-                    color: Theme.subtext
-                }
-                Label {
-                    text: "License: " + AppInfo.license
-                    color: Theme.subtext
-                }
-                Button {
-                    text: "GitHub Repository"
-                    onClicked: Qt.openUrlExternally(
-                        "https://github.com/zw5dwv5j8t-cell/hunu-wallpaper")
-                }
-                Item { Layout.fillHeight: true }
+                HunuActionButton { text: "Close"; onClicked: dialog.close() }
             }
         }
-    }
-
-    footer: DialogButtonBox {
-        Button {
-            text: "Close"
-            DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
-        }
-        onRejected: dialog.close()
     }
 }

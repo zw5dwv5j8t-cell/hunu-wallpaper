@@ -1,0 +1,18 @@
+import QtQuick
+import QtQuick.Controls
+Slider {
+    id: control
+    implicitHeight: 28
+    background: Rectangle {
+        x: control.leftPadding; y: (control.height-height)/2
+        width: control.availableWidth; height: 4; radius: 2; color: Theme.border
+        Rectangle { width: control.visualPosition * parent.width; height: parent.height; radius: 2; color: control.enabled ? Theme.accent : Theme.muted }
+    }
+    handle: Rectangle {
+        x: control.leftPadding + control.visualPosition * (control.availableWidth-width)
+        y: (control.height-height)/2
+        width: 16; height: 16; radius: 8
+        color: control.enabled ? Theme.accent : Theme.muted
+        border.width: 2; border.color: Theme.surface
+    }
+}

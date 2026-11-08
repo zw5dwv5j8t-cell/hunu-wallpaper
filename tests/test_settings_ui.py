@@ -56,10 +56,12 @@ class SettingsInteractionTests(unittest.TestCase):
 import QtQuick
 QtObject { property color base: '#181825'; property color text: '#cdd6f4'; property color subtext: '#a6adc8'; property color success: '#a6e3a1'; property color muted: '#6c7086'; property bool usingSystemTheme: false }
 ''')
+            from qt_fixtures import prepare_controls
+            prepare_controls(base)
             (base / 'Harness.qml').write_text('''import QtQuick
 import QtQuick.Controls
 ApplicationWindow {
-    visible: true; width: 960; height: 760
+    visible: true; width: 960; height: 760; color: Theme.base
     property alias settingsDialog: settings
     QtObject {
         id: ws
@@ -73,13 +75,18 @@ ApplicationWindow {
         property int cacheBytes: 0
         property int cacheFiles: 0
         property bool upscalerAvailable: false
+        function saveApplyBackend(value) { applyBackend = value }
+        function manageCache(action) {}
     }
     SettingsView { id: settings; objectName: "settingsDialog"; workspace: ws }
     Component.onCompleted: settings.open()
 }
 ''')
             engine = QQmlApplicationEngine()
+            engine.setOutputWarningsToStandardError(False)
             engine.addImportPath(str(base))
+            warnings = []
+            engine.warnings.connect(lambda values: warnings.extend(v.toString() for v in values))
             engine.load(QUrl.fromLocalFile(str(base / 'Harness.qml')))
             self.assertTrue(engine.rootObjects())
             root = engine.rootObjects()[0]
@@ -101,6 +108,13 @@ ApplicationWindow {
             self.assertFalse(buttons.property('checked'))
             self.assertEqual(delay.property('value'), 750)
             self.assertFalse(delay.property('enabled'), 'Delay control follows live-preview toggle')
+            point = position.mapToScene(QPointF(position.width()*5/6, position.height()/2)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            self.assertEqual(settings.property('switcherPosition'), 'bottom')
+            point = position.mapToScene(QPointF(position.width()/6, position.height()/2)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            self.assertEqual(settings.property('switcherPosition'), 'top')
+
             point = enabled.mapToScene(QPointF(15, enabled.height() / 2)).toPoint()
             QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
             self.assertFalse(settings.property('switcherEnabled'))
@@ -111,6 +125,29 @@ ApplicationWindow {
             saves = [command for command in commands if 'save' in command]
             self.assertTrue(saves)
             self.assertEqual(json.loads(saves[-1][-1]), dict(values, enabled=False))
+            settings.setProperty('switcherEnabled', True)
+            settings.setProperty('switcherLivePreview', True)
+            QTest.qWait(20)
+            point = delay.mapToScene(QPointF(delay.width()/2, delay.height()/2)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            QTest.keyClick(root, Qt.Key_A, Qt.ControlModifier)
+            for key in [Qt.Key_6, Qt.Key_5, Qt.Key_0]:
+                QTest.keyClick(root, key)
+            QTest.keyClick(root, Qt.Key_Return)
+            self.assertEqual(settings.property('switcherDelayMs'), 650)
+
+            # The styled combo must still open, navigate, and activate normally.
+            pages.setProperty('currentIndex', 0)
+            root.requestActivate()
+            QTest.qWait(50)
+            backend = settings.findChild(QObject, 'applyBackendSetting')
+            point = backend.mapToScene(QPointF(backend.width()/2, backend.height()/2)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            QTest.keyClick(root, Qt.Key_Up)
+            QTest.keyClick(root, Qt.Key_Return)
+            QTest.qWait(30)
+            self.assertEqual(backend.property('currentIndex'), 2)
+            self.assertFalse([w for w in warnings if 'TypeError' in w or 'Cannot assign' in w], warnings)
             root.close()
             engine.deleteLater()
             app.processEvents()

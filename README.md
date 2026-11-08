@@ -8,6 +8,20 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.0
+
+- Refresh the application with a charcoal palette, mint primary actions, clear
+  typography, and a shared set of rounded controls. Optional external theme
+  palettes continue to work.
+- Give the workspace a larger preview canvas, compact composition controls,
+  cleaner quality/position sections, and a persistent action bar.
+- Redesign Settings with a navigation rail, divided form rows, switches, segmented
+  position selection, and a fixed Save changes / Close footer.
+- Apply the same control styling to monitor setup, the measurement guide, and
+  Previous wallpapers. Keep generation and backend behavior unchanged.
+- Include the carousel caching fix: prepared assets move between positions without
+  re-decoding; neighboring images update as one consistent triplet.
+
 ## Changes in v1.15.5
 
 - Reuse prepared image items across carousel positions instead of reloading each
@@ -345,7 +359,7 @@ and results remain in the fixed bottom panel.
 
 ## Wallpaper modes
 
-![Hunu Wallpaper Splitter Settings and About](assets/screenshots/settings-about.png)
+![Hunu Wallpaper Splitter settings](assets/screenshots/settings-about.png)
 
 ### Linked / Seam
 
@@ -521,7 +535,7 @@ Open **Settings → Switcher** in the main app to configure the picker:
 - **Live preview delay:** 100–1500 ms, default 400 ms. Longer values skip more
   intermediate selections during rapid cycling.
 
-Click **Save switcher settings**. Changes take effect the next time the picker
+Click **Save changes**. Changes take effect the next time the picker
 opens; close it before changing preferences. Preferences are stored in
 `switcher-settings.json` beside the installed application and survive reinstalling.
 The main app does not add or remove compositor bindings for you.

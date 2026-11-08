@@ -8,8 +8,9 @@ FloatingWindow {
     id: root
 
     title: "Hunu Wallpaper Splitter"
-    implicitWidth: 980
-    implicitHeight: 820
+    implicitWidth: 1120
+    implicitHeight: 900
+    minimumSize: Qt.size(900, 700)
     color: Theme.base
 
     // 0 = startup check, 1 = monitor setup, 2 = wallpaper workspace.
@@ -100,7 +101,7 @@ FloatingWindow {
                     width: Math.min(parent.width - 60, 600)
                     spacing: 12
 
-                    Label {
+                    HunuText {
                         Layout.fillWidth: true
                         text: "Hunu Wallpaper Splitter"
                         color: Theme.text
@@ -109,7 +110,7 @@ FloatingWindow {
                         horizontalAlignment: Text.AlignHCenter
                     }
 
-                    Label {
+                    HunuText {
                         Layout.fillWidth: true
                         text: root.startupError === ""
                             ? "Checking monitor configuration…"

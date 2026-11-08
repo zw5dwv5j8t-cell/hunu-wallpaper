@@ -118,13 +118,13 @@ Rectangle {
             anchors.centerIn: parent
             spacing: 2
 
-            Label {
+            HunuText {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Monitor " + screenRect.slot
                 color: Theme.text
                 font.bold: true
             }
-            Label {
+            HunuText {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: screenRect.outputName
                 color: Theme.subtext

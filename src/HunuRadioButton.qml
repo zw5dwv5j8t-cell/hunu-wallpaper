@@ -1,13 +1,23 @@
 import QtQuick
 import QtQuick.Controls
-
-// Keep radio labels legible with the active Hunu palette.
 RadioButton {
+    id: control
+    implicitHeight: 30
+    spacing: 8
+    font.family: Theme.fontFamily
+    font.pixelSize: 13
+    indicator: Rectangle {
+        implicitWidth: 18; implicitHeight: 18
+        x: control.leftPadding; y: (control.height-height)/2
+        radius: 9; color: Theme.base
+        border.color: control.checked ? Theme.accent : Theme.border
+        Rectangle { anchors.centerIn: parent; width: 8; height: 8; radius: 4; color: Theme.accent; visible: control.checked }
+        opacity: control.enabled ? 1 : 0.4
+    }
     contentItem: Text {
-        text: parent.text
-        font: parent.font
-        color: parent.enabled ? Theme.text : Theme.muted
+        text: control.text; font: control.font
+        color: control.enabled ? Theme.text : Theme.muted
         verticalAlignment: Text.AlignVCenter
-        leftPadding: parent.indicator.width + parent.spacing
+        leftPadding: control.indicator.width + control.spacing
     }
 }

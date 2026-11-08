@@ -8,6 +8,7 @@ TextField {
     required property var workspace
     required property int slot
     required property string axis
+    objectName: "offsetInput-" + slot + "-" + axis
 
     readonly property int currentValue: axis === "x"
         ? workspace.offsetX[slot] : workspace.offsetY[slot]
@@ -16,16 +17,19 @@ TextField {
 
     Layout.preferredWidth: 80
     text: String(currentValue)
+    font.family: Theme.fontFamily
+    font.pixelSize: 13
+    implicitHeight: 36
     color: Theme.text
     horizontalAlignment: TextInput.AlignRight
     selectByMouse: true
     validator: IntValidator {}
     background: Rectangle {
-        radius: 6
+        radius: 9
         color: Theme.base
         border.width: 1
         border.color: field.activeFocus
-            ? Theme.subtext : Qt.alpha(Theme.subtext, 0.35)
+            ? Theme.accent : Theme.border
     }
 
     function commitValue() {

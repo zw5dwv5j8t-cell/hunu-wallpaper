@@ -48,8 +48,8 @@ Dialog {
     onOpened: refresh()
     parent: Overlay.overlay
     anchors.centerIn: parent
-    width: Math.min(880, parent.width - 40)
-    height: Math.min(620, parent.height - 40)
+    width: Math.min(960, parent.width - 40)
+    height: Math.min(660, parent.height - 40)
     modal: true
     padding: 20
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -58,7 +58,7 @@ Dialog {
         color: Theme.base
         border.color: Qt.alpha(Theme.subtext, 0.3)
     }
-    header: Label {
+    header: HunuText {
         text: "Previous wallpapers"
         color: Theme.text
         font.pixelSize: 22
@@ -93,13 +93,13 @@ Dialog {
 
     contentItem: ColumnLayout {
         spacing: 12
-        Label {
+        HunuText {
             Layout.fillWidth: true
             text: dialog.workspace.outputDirectory
             color: Theme.subtext
             elide: Text.ElideMiddle
         }
-        Label {
+        HunuText {
             Layout.fillWidth: true
             visible: loader.running || dialog.sets.length === 0 || dialog.errorText !== ""
             text: loader.running ? "Reading saved wallpapers…"
@@ -119,7 +119,7 @@ Dialog {
                 clip: true
                 model: dialog.sets
                 spacing: 6
-                ScrollBar.vertical: ScrollBar {}
+                ScrollBar.vertical: HunuScrollBar {}
                 delegate: ItemDelegate {
                     required property int index
                     required property var modelData
@@ -138,7 +138,7 @@ Dialog {
                             fillMode: Image.PreserveAspectFit
                             asynchronous: true
                         }
-                        Label {
+                        HunuText {
                             width: parent.width
                             text: modelData.name
                             color: Theme.text
@@ -147,7 +147,7 @@ Dialog {
                     }
                 }
             }
-            ScrollView {
+            HunuScrollView {
                 id: detailScroll
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -155,14 +155,14 @@ Dialog {
                 ColumnLayout {
                     width: detailScroll.availableWidth
                     spacing: 12
-                    Label {
+                    HunuText {
                         Layout.fillWidth: true
                         text: dialog.selectedSet ? dialog.selectedSet.title : "Select a wallpaper set"
                         color: Theme.text
                         font.bold: true
                         wrapMode: Text.WrapAnywhere
                     }
-                    Label {
+                    HunuText {
                         Layout.fillWidth: true
                         visible: dialog.selectedSet !== null
                         text: !dialog.selectedSet ? "" : dialog.selectedSet.error !== ""
@@ -172,7 +172,7 @@ Dialog {
                         color: Theme.subtext
                         wrapMode: Text.WordWrap
                     }
-                    Label {
+                    HunuText {
                         Layout.fillWidth: true
                         visible: dialog.selectedSet !== null && !dialog.selectedSet.legacy
                         text: {
@@ -192,7 +192,7 @@ Dialog {
                     }
                     Repeater {
                         model: dialog.selectedSet ? dialog.selectedSet.monitors : []
-                        delegate: Label {
+                        delegate: HunuText {
                             required property var modelData
                             Layout.fillWidth: true
                             text: "Monitor " + modelData.slot + " · " + modelData.output
@@ -212,7 +212,7 @@ Dialog {
                         monitorLayout: dialog.monitorLayout
                     }
 
-                    Label {
+                    HunuText {
                         Layout.fillWidth: true
                         text: "Uses the outputs recorded when this set was generated."
                         color: Theme.muted
@@ -221,7 +221,7 @@ Dialog {
                 }
             }
         }
-        Label {
+        HunuText {
             Layout.fillWidth: true
             text: dialog.workspace.backendStatus
             color: dialog.workspace.backendReady ? Theme.success : Theme.subtext
@@ -230,17 +230,19 @@ Dialog {
     }
 
     footer: RowLayout {
-        Button {
+        HunuActionButton {
             text: "Refresh"
             enabled: !loader.running && !dialog.workspace.busy
             onClicked: dialog.refresh()
         }
         Item { Layout.fillWidth: true }
-        Button {
+        HunuActionButton {
             text: "Close"
             onClicked: dialog.close()
         }
-        Button {
+        HunuActionButton {
+            primary: true
+            glyph: "check"
             text: "Apply set"
             enabled: dialog.canApply
             onClicked: {

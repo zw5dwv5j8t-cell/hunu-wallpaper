@@ -14,6 +14,8 @@ TextField {
     topPadding: 0
     bottomPadding: 0
     text: String(numberValue)
+    font.family: Theme.fontFamily
+    font.pixelSize: 13
     color: Theme.text
     selectByMouse: true
     horizontalAlignment: TextInput.AlignRight
@@ -29,11 +31,11 @@ TextField {
     }
 
     background: Rectangle {
-        radius: 7
+        radius: 9
         color: Theme.surface
         border.width: 1
         border.color: numberBox.activeFocus
-            ? Theme.subtext : Qt.alpha(Theme.subtext, 0.30)
+            ? Theme.accent : Theme.border
     }
 
     // External measurement changes update the field without interrupting edits.

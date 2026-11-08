@@ -15,3 +15,15 @@ SetupLayoutPreview 1.0 SetupLayoutPreview.qml
 SetupGuide 1.0 SetupGuide.qml
 SavedWallpapersView 1.0 SavedWallpapersView.qml
 SavedSetPreview 1.0 SavedSetPreview.qml
+HunuActionButton 1.0 HunuActionButton.qml
+HunuIcon 1.0 HunuIcon.qml
+HunuText 1.0 HunuText.qml
+HunuCheckBox 1.0 HunuCheckBox.qml
+HunuToggle 1.0 HunuToggle.qml
+HunuComboBox 1.0 HunuComboBox.qml
+HunuSlider 1.0 HunuSlider.qml
+HunuSpinBox 1.0 HunuSpinBox.qml
+HunuSegmented 1.0 HunuSegmented.qml
+HunuSettingsRow 1.0 HunuSettingsRow.qml
+HunuScrollBar 1.0 HunuScrollBar.qml
+HunuScrollView 1.0 HunuScrollView.qml

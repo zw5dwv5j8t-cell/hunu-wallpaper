@@ -99,6 +99,7 @@ Item {
 
     SavedWallpapersView {
         id: savedWallpapersDialog
+        objectName: "savedWallpapersDialog"
         workspace: root
     }
 
@@ -844,13 +845,14 @@ Item {
     }
 
     // Upper controls scroll; results and cancellation remain fixed below.
-    ScrollView {
+    HunuScrollView {
         id: workspaceScroll
+        objectName: "workspaceScroll"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: workspaceResults.top
-        anchors.margins: 22
+        anchors.margins: 24
         anchors.bottomMargin: 12
         clip: true
         contentWidth: availableWidth
@@ -859,56 +861,41 @@ Item {
         ColumnLayout {
             id: workspaceContent
             width: workspaceScroll.availableWidth
-            spacing: 12
+            spacing: 14
             enabled: !root.busy
 
         RowLayout {
             Layout.fillWidth: true
-            ColumnLayout {
+            spacing: 16
+            HunuText { text: "Hunu"; font.pixelSize: 28; font.weight: Font.Bold }
+            Rectangle { width: 1; height: 25; color: Theme.border }
+            HunuText { text: "Wallpaper Splitter"; font.pixelSize: 21; color: Theme.subtext }
+            Item { Layout.fillWidth: true }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+            HunuText {
                 Layout.fillWidth: true
-                spacing: 2
-                Label {
-                    text: "Wallpaper Splitter"
-                    color: Theme.text
-                    font.pixelSize: 25
-                    font.bold: true
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: root.appliedSavedSet ? "Applied set: " + root.appliedSavedSet.name
-                        : root.sourcePath === "" ? "No wallpaper selected" : root.sourcePath
-                    color: Theme.subtext
-                    elide: Text.ElideMiddle
-                }
+                text: root.appliedSavedSet ? "Applied set: " + root.appliedSavedSet.title
+                    : root.sourcePath === "" ? "Choose an image to begin" : "Source: " + root.sourcePath.split("/").pop()
+                color: Theme.subtext
+                elide: Text.ElideMiddle
             }
-            Button {
-                text: "Settings"
-                onClicked: settingsDialog.open()
-                ToolTip.visible: hovered
-                ToolTip.text: "Output folder, wallpaper backend, AI cache, and app information."
-            }
-            Button {
-                text: "Previous wallpapers"
-                enabled: root.outputDirectory !== ""
-                onClicked: savedWallpapersDialog.open()
-            }
-            Button {
-                text: "Choose Wallpaper"
-                onClicked: wallpaperDialog.open()
-                ToolTip.visible: hovered
-                ToolTip.text: "Choose the source image that Hunu will crop for your monitors."
-            }
+            HunuActionButton { objectName: "openSettings"; text: "Settings"; glyph: "settings"; onClicked: settingsDialog.open() }
+            HunuActionButton { objectName: "openSavedWallpapers"; text: "Previous wallpapers"; glyph: "history"; enabled: root.outputDirectory !== ""; onClicked: savedWallpapersDialog.open() }
+            HunuActionButton { objectName: "chooseWallpaper"; text: "Choose Wallpaper"; glyph: "folder"; primary: true; onClicked: wallpaperDialog.open() }
         }
 
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
 
-            Label {
+            HunuText {
                 text: "Save to"
                 color: Theme.subtext
             }
-            Label {
+            HunuText {
                 Layout.fillWidth: true
                 text: root.outputDirectory === ""
                     ? "Save monitor setup first" : root.outputDirectory
@@ -917,139 +904,88 @@ Item {
             }
         }
 
-        RowLayout {
+        Rectangle {
             Layout.fillWidth: true
-            Label {
-                text: root.mode === "linked" ? "Physical Layout Preview" : "Per-Monitor Preview"
-                color: Theme.text
-                font.bold: true
-                font.pixelSize: 15
-            }
-            Label {
-                text: "ⓘ"
-                color: Theme.subtext
-                font.pixelSize: 15
-                ToolTip.visible: previewHelp.containsMouse
-                ToolTip.text: root.mode === "linked"
-                    ? "Monitor rectangles use the physical sizes and X/Y positions saved in Monitor Setup. The wallpaper remains one continuous composition across them."
-                    : "Each monitor receives its own crop from the original image, maximizing usable source detail."
-                MouseArea { id: previewHelp; anchors.fill: parent; hoverEnabled: true }
-            }
-            Item { Layout.fillWidth: true }
-            Label {
-                visible: root.monitorCount > 0
-                text: root.monitorCount + (root.monitorCount === 1 ? " monitor" : " monitors")
-                color: Theme.muted
-            }
-        }
-
-        SavedSetPreview {
-            visible: root.appliedSavedSet !== null || root.sourcePath === ""
-            wallpaperSet: root.appliedSavedSet || root.configuredPreviewSet
-            monitorLayout: root.appliedSavedSet ? root.savedSetLayout : root.configuredPreviewLayout
-            Layout.fillWidth: true
-            Layout.preferredHeight: 210
-        }
-
-        Button {
-            visible: root.appliedSavedSet !== null
-            text: "Return to editing"
-            onClicked: root.appliedSavedSet = null
-        }
-
-        WorkspacePreview {
-            visible: root.appliedSavedSet === null && root.sourcePath !== ""
-            workspace: root
-            Layout.fillWidth: true
-            Layout.preferredHeight: 210
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            visible: root.appliedSavedSet === null
-            spacing: 14
-            Label { text: "Mode"; color: Theme.text; font.bold: true }
-            HunuRadioButton {
-                text: "Linked / Seam"
-                checked: root.mode === "linked"
-                onClicked: {
-                    root.mode = "linked"
-                    root.resetOffsets()
+            Layout.preferredHeight: 300
+            radius: Theme.radius
+            color: Theme.surface
+            border.color: Theme.border
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 14
+                RowLayout {
+                    Layout.fillWidth: true
+                    HunuText { text: root.mode === "linked" ? "Physical layout preview" : "Per-monitor preview"; font.pixelSize: 17; font.weight: Font.DemiBold }
+                    Item { Layout.fillWidth: true }
+                    HunuText { text: root.monitorCount + (root.monitorCount === 1 ? " monitor" : " monitors"); color: Theme.muted; font.pixelSize: 12 }
                 }
-                ToolTip.visible: hovered
-                ToolTip.text: "One continuous wallpaper composition across the physical monitor arrangement."
-            }
-            HunuRadioButton {
-                text: "Maximum Quality / Independent"
-                checked: root.mode === "quality"
-                onClicked: {
-                    root.mode = "quality"
-                    root.resetOffsets()
-                }
-                ToolTip.visible: hovered
-                ToolTip.text: "Crop the original image separately for each monitor to preserve maximum source detail."
-            }
-            CheckBox {
-                id: linkedMovementControl
-                text: "Move together"
-                visible: root.mode === "linked"
-                checked: root.linkedOffsets
-
-                contentItem: Text {
-                    text: linkedMovementControl.text
-                    font: linkedMovementControl.font
-                    color: linkedMovementControl.enabled
-                        ? Theme.text : Theme.muted
-                    verticalAlignment: Text.AlignVCenter
-                    leftPadding: linkedMovementControl.indicator.width
-                        + linkedMovementControl.spacing
-                }
-
-                onClicked: {
-                    root.linkedOffsets = checked
-                    if (checked && root.activeSlots.length > 0) {
-                        const slot = root.activeSlots[0]
-                        root.setOffset(slot, "x", root.offsetX[slot])
-                        root.setOffset(slot, "y", root.offsetY[slot])
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    SavedSetPreview {
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        visible: root.appliedSavedSet !== null || root.sourcePath === ""
+                        wallpaperSet: root.appliedSavedSet || root.configuredPreviewSet
+                        monitorLayout: root.appliedSavedSet ? root.savedSetLayout : root.configuredPreviewLayout
+                    }
+                    WorkspacePreview {
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        visible: root.appliedSavedSet === null && root.sourcePath !== ""
+                        workspace: root
                     }
                 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: root.appliedSavedSet === null
+                    spacing: 14
+                    HunuText { text: "Mode"; font.weight: Font.DemiBold }
+                    HunuSegmented {
+                        objectName: "compositionMode"
+                        Layout.preferredWidth: 280
+                        options: ["Linked / Seam", "Maximum Quality"]
+                        currentIndex: root.mode === "linked" ? 0 : 1
+                        onSelected: function(index) { root.mode = index === 0 ? "linked" : "quality"; root.resetOffsets() }
+                    }
+                    HunuCheckBox {
+                        text: "Move together"
+                        visible: root.mode === "linked"
+                        checked: root.linkedOffsets
+                        onClicked: {
+                            root.linkedOffsets = checked
+                            if (checked && root.activeSlots.length > 0) {
+                                const slot = root.activeSlots[0]
+                                root.setOffset(slot, "x", root.offsetX[slot])
+                                root.setOffset(slot, "y", root.offsetY[slot])
+                            }
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                    HunuActionButton { text: "Center / Reset"; glyph: "reset"; enabled: root.sourcePath !== ""; onClicked: root.resetOffsets() }
+                }
+                HunuActionButton { visible: root.appliedSavedSet !== null; text: "Return to editing"; onClicked: root.appliedSavedSet = null }
             }
-            Item { Layout.fillWidth: true }
-            Button {
-                text: "Center / Reset"
-                enabled: root.sourcePath !== ""
-                onClicked: root.resetOffsets()
-                ToolTip.visible: hovered
-                ToolTip.text: "Return every wallpaper crop to its calculated centered position."
-            }
-        }
-
-        Label {
-            Layout.fillWidth: true
-            text: root.mode === "linked"
-                ? "Linked / Seam treats your measured monitor arrangement as one physical canvas."
-                : "Maximum Quality crops the original wallpaper independently for each monitor."
-            color: Theme.muted
-            wrapMode: Text.WordWrap
         }
 
         ImageQualityPanel {
             visible: root.appliedSavedSet === null && root.sourcePath !== ""
             workspace: root
             Layout.fillWidth: true
-            Layout.preferredHeight: 112
+            Layout.preferredHeight: 92
         }
 
         RowLayout {
             visible: root.appliedSavedSet === null
             Layout.fillWidth: true
-            Label {
-                text: "Wallpaper Position"
+            HunuText {
+                text: "Wallpaper position"
                 color: Theme.text
                 font.bold: true
-                font.pixelSize: 15
+                font.pixelSize: 17
             }
-            Label {
+            HunuText {
                 text: "ⓘ"
                 color: Theme.subtext
                 ToolTip.visible: positionHelp.containsMouse
@@ -1082,7 +1018,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 22
-        height: 118
+        anchors.margins: 24
+        height: 96
     }
 }

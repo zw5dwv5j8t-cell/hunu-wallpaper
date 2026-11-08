@@ -6,28 +6,28 @@ Rectangle {
     id: panel
     required property var workspace
 
-    radius: 10
+    radius: Theme.radius
     color: Theme.surface
     border.width: 1
-    border.color: Qt.alpha(Theme.subtext, 0.22)
+    border.color: Theme.border
     visible: workspace.sourcePath !== ""
 
     // Display backend recommendations; AI scaling remains a manual choice.
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 14
+        anchors.margins: 10
         spacing: 18
 
         ColumnLayout {
             spacing: 3
 
-            Label {
+            HunuText {
                 text: "Image Quality"
                 color: Theme.text
                 font.bold: true
                 font.pixelSize: 15
             }
-            Label {
+            HunuText {
                 text: "Source  " + panel.workspace.sourceW
                     + " × " + panel.workspace.sourceH
                     + "   ·   Recommended  " + panel.workspace.idealW
@@ -42,7 +42,7 @@ Rectangle {
         ColumnLayout {
             spacing: 5
 
-            Label {
+            HunuText {
                 Layout.alignment: Qt.AlignRight
                 text: panel.workspace.sourceSufficient
                     ? "Source quality: Excellent"
@@ -56,7 +56,7 @@ Rectangle {
                 Layout.alignment: Qt.AlignRight
                 spacing: 4
 
-                Label {
+                HunuText {
                     text: "AI Upscaling"
                     color: Theme.subtext
                     font.pixelSize: 12
@@ -86,7 +86,7 @@ Rectangle {
                 }
             }
 
-            Label {
+            HunuText {
                 Layout.alignment: Qt.AlignRight
                 text: !panel.workspace.upscalerChecked
                     ? "Checking Real-ESRGAN…"

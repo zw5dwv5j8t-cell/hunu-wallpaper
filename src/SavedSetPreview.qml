@@ -51,7 +51,7 @@ Repeater {
             fillMode: Image.Stretch
             asynchronous: true
         }
-        Label {
+        HunuText {
             visible: preview.showLabels
             anchors.left: parent.left
             anchors.bottom: parent.bottom

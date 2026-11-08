@@ -324,40 +324,13 @@ Item {
         }
     }
 
-    component HunuButton: Rectangle {
-        id: hb
+    component HunuButton: HunuActionButton {
         required property string label
-        property bool enabled: true
-        signal clicked()
-
-        implicitWidth: buttonLabel.implicitWidth + 28
-        implicitHeight: 34
-        radius: 8
-        color: enabled
-            ? (buttonMouse.containsMouse ? Qt.alpha(Theme.text, 0.16) : Theme.surface)
-            : Qt.alpha(Theme.surface, 0.45)
-        border.width: 1
-        border.color: Qt.alpha(Theme.subtext, enabled ? 0.35 : 0.15)
-
-        Label {
-            id: buttonLabel
-            anchors.centerIn: parent
-            text: hb.label
-            color: hb.enabled ? Theme.text : Theme.muted
-            font.pixelSize: 13
-        }
-
-        MouseArea {
-            id: buttonMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: hb.enabled
-            cursorShape: Qt.PointingHandCursor
-            onClicked: hb.clicked()
-        }
+        text: label
+        primary: label === "Continue" || label === "Save Setup"
     }
 
-    component InfoTip: Label {
+    component InfoTip: HunuText {
         required property string helpText
         text: "ⓘ"
         color: Theme.subtext
@@ -374,7 +347,7 @@ Item {
 
 
 
-    component AssignmentBox: ComboBox {
+    component AssignmentBox: HunuComboBox {
         id: combo
         property int assignedIndex: -1
         property bool allowDisabled: true
@@ -467,7 +440,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                Label {
+                HunuText {
                     text: "Monitor " + slot
                     color: Theme.text
                     font.pixelSize: 17
@@ -484,7 +457,7 @@ Item {
                 }
             }
 
-            Label {
+            HunuText {
                 Layout.fillWidth: true
                 visible: root.monitorAt(assignBox.assignedIndex) !== null
                 text: {
@@ -501,28 +474,28 @@ Item {
                 Layout.fillWidth: true
                 spacing: 9
 
-                Label { text: "Physical size"; color: Theme.text }
+                HunuText { text: "Physical size"; color: Theme.text }
                 InfoTip {
                     helpText: "Measure the complete visible monitor rectangle including its bezel. EDID values are only starting suggestions."
                 }
                 Item { Layout.fillWidth: true }
 
-                Label { text: "W"; color: Theme.subtext }
+                HunuText { text: "W"; color: Theme.subtext }
                 HunuNumberInput {
                     numberValue: setupCard.widthValue
                     onValueEdited: function(value) {
                         setupCard.widthEdited(value)
                     }
                 }
-                Label { text: "cm"; color: Theme.subtext }
-                Label { text: "H"; color: Theme.subtext }
+                HunuText { text: "cm"; color: Theme.subtext }
+                HunuText { text: "H"; color: Theme.subtext }
                 HunuNumberInput {
                     numberValue: setupCard.heightValue
                     onValueEdited: function(value) {
                         setupCard.heightEdited(value)
                     }
                 }
-                Label { text: "cm"; color: Theme.subtext }
+                HunuText { text: "cm"; color: Theme.subtext }
             }
 
             RowLayout {
@@ -530,28 +503,28 @@ Item {
                 Layout.fillWidth: true
                 spacing: 9
 
-                Label { text: "Physical position"; color: Theme.text }
+                HunuText { text: "Physical position"; color: Theme.text }
                 InfoTip {
                     helpText: "X and Y describe where this physical monitor rectangle sits relative to the others. Positive X moves right; positive Y moves down."
                 }
                 Item { Layout.fillWidth: true }
 
-                Label { text: "X"; color: Theme.subtext }
+                HunuText { text: "X"; color: Theme.subtext }
                 HunuNumberInput {
                     numberValue: setupCard.xValue
                     onValueEdited: function(value) {
                         setupCard.xEdited(value)
                     }
                 }
-                Label { text: "cm"; color: Theme.subtext }
-                Label { text: "Y"; color: Theme.subtext }
+                HunuText { text: "cm"; color: Theme.subtext }
+                HunuText { text: "Y"; color: Theme.subtext }
                 HunuNumberInput {
                     numberValue: setupCard.yValue
                     onValueEdited: function(value) {
                         setupCard.yEdited(value)
                     }
                 }
-                Label { text: "cm"; color: Theme.subtext }
+                HunuText { text: "cm"; color: Theme.subtext }
             }
         }
     }
@@ -572,7 +545,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
 
-                    Label {
+                    HunuText {
                         text: "Monitor Setup"
                         color: Theme.text
                         font.pixelSize: 25
@@ -582,12 +555,12 @@ Item {
                     Item { Layout.fillWidth: true }
 
                 }
-                Label {
+                HunuText {
                     text: detector.running ? "Detecting Hyprland displays…"
                         : detectedCount + (detectedCount === 1 ? " display detected" : " displays detected")
                     color: Theme.subtext
                 }
-                Label {
+                HunuText {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     text: "Display names, resolution, orientation and refresh rate are detected automatically. Physical measurements are calibrated on the next screen."
@@ -610,22 +583,22 @@ Item {
                             anchors.fill: parent
                             anchors.margins: 14
                             spacing: 6
-                            Label {
+                            HunuText {
                                 text: "Detected display " + (index + 1)
                                 color: Theme.text
                                 font.bold: true
                             }
-                            Label {
+                            HunuText {
                                 text: modelData.make + " " + modelData.model
                                 color: Theme.text
                             }
-                            Label {
+                            HunuText {
                                 text: modelData.name + "  •  " + modelData.width + " × "
                                     + modelData.height + "  •  " + modelData.orientation
                                     + "  •  " + modelData.refresh + " Hz"
                                 color: Theme.subtext
                             }
-                            Label {
+                            HunuText {
                                 text: "EDID size suggestion: " + modelData.suggestedWidth
                                     + " × " + modelData.suggestedHeight + " cm"
                                 color: Theme.muted
@@ -678,7 +651,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
 
-                    Label {
+                    HunuText {
                         text: "Assign & Calibrate"
                         color: Theme.text
                         font.pixelSize: 25
@@ -687,19 +660,19 @@ Item {
 
                     Item { Layout.fillWidth: true }
 
-                    Button {
+                    HunuActionButton {
                         text: "How to measure"
                         onClicked: root.openGuide()
                     }
                 }
-                Label {
+                HunuText {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     text: "Choose which detected output belongs to each Hunu monitor slot. Then measure the complete monitor rectangle including the bezel and enter its real position on your desk."
                     color: Theme.subtext
                 }
 
-                ScrollView {
+                HunuScrollView {
                     id: calibrationScroll
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -783,7 +756,7 @@ Item {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            Label {
+                            HunuText {
                                 text: "Physical layout preview"
                                 color: Theme.text
                                 font.bold: true
@@ -804,7 +777,7 @@ Item {
                     }
                 }
 
-                Label {
+                HunuText {
                     visible: !root.assignmentValid()
                     Layout.fillWidth: true
                     text: "Each enabled monitor needs a unique output and positive physical width/height."
@@ -812,7 +785,7 @@ Item {
                     wrapMode: Text.WordWrap
                 }
 
-                Label {
+                HunuText {
                     visible: root.saveStatus !== ""
                     Layout.fillWidth: true
                     text: root.saveStatus

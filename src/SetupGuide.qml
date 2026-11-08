@@ -87,7 +87,7 @@ Dialog {
         border.color: Qt.alpha(Theme.subtext, 0.3)
     }
 
-    header: Label {
+    header: HunuText {
         text: "How to measure · " + (guide.step + 1) + " / 3"
         color: Theme.text
         font.pixelSize: 22
@@ -99,7 +99,7 @@ Dialog {
     contentItem: ColumnLayout {
         spacing: 14
 
-        Label {
+        HunuText {
             Layout.fillWidth: true
             text: guide.headings[guide.step]
             color: Theme.text
@@ -131,14 +131,14 @@ Dialog {
                     border.width: 5
                     border.color: Theme.subtext
 
-                    Label {
+                    HunuText {
                         anchors.centerIn: parent
                         text: guide.step === 0 ? "Monitor + bezels" : "Monitor 1"
                         color: Theme.text
                     }
                 }
 
-                Label {
+                HunuText {
                     visible: guide.step === 0
                     x: firstMonitor.x
                     y: 8
@@ -147,7 +147,7 @@ Dialog {
                     text: "←  Outside width  →"
                     color: Theme.success
                 }
-                Label {
+                HunuText {
                     visible: guide.step === 0
                     x: firstMonitor.x + firstMonitor.width + 12
                     y: firstMonitor.y + 35
@@ -168,7 +168,7 @@ Dialog {
                     border.width: 5
                     border.color: Theme.success
 
-                    Label {
+                    HunuText {
                         anchors.centerIn: parent
                         text: "Monitor 2"
                         color: Theme.text
@@ -188,7 +188,7 @@ Dialog {
                     }
                 }
 
-                Label {
+                HunuText {
                     visible: guide.step !== 0
                     x: 38
                     y: 185
@@ -241,7 +241,7 @@ Dialog {
                         color: Theme.success
                     }
                 }
-                Label {
+                HunuText {
                     visible: guide.step === 1
                     x: 38
                     y: 210
@@ -251,7 +251,7 @@ Dialog {
                         + ((secondMonitor.y - 35) / 5).toFixed(1) + " cm"
                     color: Theme.success
                 }
-                Label {
+                HunuText {
                     visible: guide.step === 2
                     x: 165
                     y: 20
@@ -261,14 +261,14 @@ Dialog {
             }
         }
 
-        Label {
+        HunuText {
             Layout.fillWidth: true
             text: guide.explanations[guide.step]
             color: Theme.subtext
             wrapMode: Text.WordWrap
         }
 
-        Label {
+        HunuText {
             Layout.fillWidth: true
             text: "Physical centimeters are separate from Hyprland's pixel coordinates."
             color: Theme.muted
@@ -279,12 +279,12 @@ Dialog {
     footer: RowLayout {
         spacing: 10
 
-        Button {
+        HunuActionButton {
             text: "Skip"
             onClicked: guide.close()
         }
 
-        Button {
+        HunuActionButton {
             visible: guide.step === 1
             text: guide.animationPaused ? "Play" : "Pause"
             onClicked: guide.animationPaused = !guide.animationPaused
@@ -292,12 +292,12 @@ Dialog {
 
         Item { Layout.fillWidth: true }
 
-        Button {
+        HunuActionButton {
             text: "Previous"
             enabled: guide.step > 0
             onClicked: guide.step--
         }
-        Button {
+        HunuActionButton {
             text: guide.step === 2 ? "Done" : "Next"
             onClicked: {
                 if (guide.step === 2)

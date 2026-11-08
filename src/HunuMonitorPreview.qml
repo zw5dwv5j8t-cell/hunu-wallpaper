@@ -14,7 +14,7 @@ Rectangle {
     radius: 7
     clip: true
     border.width: 1
-    border.color: Theme.subtext
+    border.color: Theme.border
 
     Image {
         source: workspace.sourceUrl
@@ -29,15 +29,16 @@ Rectangle {
     }
 
     Column {
+        visible: workspace.sourceUrl === ""
         anchors.centerIn: parent
         spacing: 2
-        Label {
+        HunuText {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "Monitor " + preview.slot
             color: Theme.text
             font.bold: true
         }
-        Label {
+        HunuText {
             anchors.horizontalCenter: parent.horizontalCenter
             text: workspace.outputName[preview.slot]
                 + " · " + workspace.pixelW[preview.slot]
@@ -52,7 +53,7 @@ Rectangle {
         color: "transparent"
         radius: preview.radius
         border.width: 1
-        border.color: Theme.subtext
+        border.color: Theme.border
     }
 
 }

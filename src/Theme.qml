@@ -11,12 +11,12 @@ QtObject {
     //
     // This is always available and means external theming is never a
     // requirement for running the application.
-	readonly property color fallbackBase: "#181825"
-	readonly property color fallbackSurface: "#11111b"
-    readonly property color fallbackText: "#cdd6f4"
-    readonly property color fallbackSubtext: "#a6adc8"
-    readonly property color fallbackMuted: "#6c7086"
-    readonly property color fallbackSuccess: "#a6e3a1"
+	readonly property color fallbackBase: "#111318"
+	readonly property color fallbackSurface: "#1b1e25"
+    readonly property color fallbackText: "#f0f2f6"
+    readonly property color fallbackSubtext: "#929aa8"
+    readonly property color fallbackMuted: "#6e7785"
+    readonly property color fallbackSuccess: "#a7e7c4"
 
     property color base: fallbackBase
     property color surface: fallbackSurface
@@ -24,6 +24,14 @@ QtObject {
     property color subtext: fallbackSubtext
     property color muted: fallbackMuted
     property color success: fallbackSuccess
+    readonly property color accent: success
+    readonly property color onAccent: accent.r * 0.299 + accent.g * 0.587 + accent.b * 0.114 > 0.56 ? "#102018" : "white"
+    readonly property color raised: Qt.lighter(surface, 1.16)
+    readonly property color hoverSurface: Qt.lighter(surface, 1.3)
+    readonly property color border: Qt.alpha(subtext, 0.24)
+    readonly property string fontFamily: "Sans Serif"
+    readonly property int radius: 14
+    readonly property int radiusSmall: 9
 
     // Exposed for future Settings/About UI.
     property string provider: "fallback"

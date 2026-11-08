@@ -72,7 +72,8 @@ else:
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual((install / 'config.conf').read_text(), 'APPLY_BACKEND=noctalia\n# Keep my setup\n')
                 self.assertEqual((install / 'switcher-settings.json').read_text(), preferences)
-            for name in ['Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'switcher-settings.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml']:
+            from qt_fixtures import CONTROLS
+            for name in ['Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'switcher-settings.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml'] + [name + '.qml' for name in CONTROLS]:
                 self.assertEqual((install / name).read_bytes(), (ROOT / 'src' / name).read_bytes())
             self.assertTrue(os.access(install / 'switcher.sh', os.X_OK))
 

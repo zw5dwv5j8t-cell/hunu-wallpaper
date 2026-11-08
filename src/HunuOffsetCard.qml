@@ -8,32 +8,30 @@ Rectangle {
     required property var workspace
     required property int slot
     Layout.fillWidth: true
-    implicitHeight: 188
-    radius: 10
+    implicitHeight: 150
+    radius: Theme.radius
     color: Theme.surface
     border.width: 1
-    border.color: Qt.alpha(Theme.subtext, 0.22)
+    border.color: Theme.border
 
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 13
         spacing: 7
 
-        Label {
-            text: "Monitor " + card.slot + " — " + workspace.outputName[card.slot]
-            color: Theme.text
-            font.bold: true
-            font.pixelSize: 15
-        }
-        Label {
-            text: workspace.pixelW[card.slot] + " × " + workspace.pixelH[card.slot]
-            color: Theme.muted
-        }
-
         RowLayout {
             Layout.fillWidth: true
-            Label { text: "X"; color: Theme.text; Layout.preferredWidth: 18 }
-            Slider {
+            HunuIcon { symbol: "monitor"; Layout.preferredWidth: 18; Layout.preferredHeight: 18 }
+            HunuText { text: "Monitor " + card.slot; font.weight: Font.DemiBold }
+            HunuText { text: workspace.outputName[card.slot]; color: Theme.subtext; font.pixelSize: 12 }
+            Item { Layout.fillWidth: true }
+            HunuText { text: workspace.pixelW[card.slot] + " × " + workspace.pixelH[card.slot]; color: Theme.muted; font.pixelSize: 11 }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            HunuText { text: "X"; color: Theme.text; Layout.preferredWidth: 18 }
+            HunuSlider {
+                objectName: "offsetSlider-" + card.slot + "-x"
                 Layout.fillWidth: true
                 from: workspace.offsetMinimum(card.slot, "x")
                 to: workspace.offsetMaximum(card.slot, "x")
@@ -51,8 +49,9 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            Label { text: "Y"; color: Theme.text; Layout.preferredWidth: 18 }
-            Slider {
+            HunuText { text: "Y"; color: Theme.text; Layout.preferredWidth: 18 }
+            HunuSlider {
+                objectName: "offsetSlider-" + card.slot + "-y"
                 Layout.fillWidth: true
                 from: workspace.offsetMinimum(card.slot, "y")
                 to: workspace.offsetMaximum(card.slot, "y")
@@ -68,16 +67,5 @@ Rectangle {
             }
         }
 
-        Label {
-            Layout.fillWidth: true
-            text: workspace.mode === "linked"
-                ? workspace.linkedOffsets
-                    ? "Move the shared composition across all enabled monitors."
-                    : "Move this monitor's crop independently; seams may no longer align."
-                : "Move this monitor's independent crop within the original image."
-            color: Theme.muted
-            wrapMode: Text.WordWrap
-            font.pixelSize: 12
-        }
     }
 }
