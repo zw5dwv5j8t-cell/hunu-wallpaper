@@ -95,8 +95,17 @@ class PickerInteractionTests(unittest.TestCase):
             receive(dict(event='ready', current='First', liveEnabled=True, liveReason=''))
             self.assertEqual(root.property('selectedIndex'), 1, 'Snapshot must preserve early navigation')
             js.property('move').callWithInstance(js, [QJSValue(-1.0)])
+            self.assertFalse(root.property('firstFrameReady'))
+            content_at_start = next(child for child in root.contentItem().childItems()
+                                    if child.objectName() == 'switcherContent')
+            self.assertLess(content_at_start.opacity(), 1 / 255, 'Hide controls until all visible frames are painted')
             root.requestActivate()
-            QTest.qWait(100)
+            for _ in range(100):
+                QTest.qWait(10)
+                if root.property('firstFrameReady'):
+                    break
+            self.assertTrue(root.property('firstFrameReady'))
+            self.assertEqual(content_at_start.opacity(), 1)
             def find_visual(item, name):
                 if item.objectName() == name:
                     return item

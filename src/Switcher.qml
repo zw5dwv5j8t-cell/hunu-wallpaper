@@ -28,6 +28,8 @@ PanelWindow {
     property string verticalPosition: "center"
     property bool showActionButtons: true
     property int previewDelayMs: 400
+    property bool firstFrameReady: false
+    property bool prefetchEnabled: false
     property bool initialized: false
     property bool snapshotReady: false
     property bool hasNavigated: false
@@ -176,6 +178,11 @@ PanelWindow {
         sessionProcess.command = ["python3", helper("switcher-controller.py"), "session"]
         sessionProcess.running = true
     }
+    Timer {
+        id: prefetchTimer
+        interval: 100
+        onTriggered: picker.prefetchEnabled = true
+    }
     Timer { id: debounce; interval: picker.previewDelayMs; onTriggered: picker.dispatch() }
     IpcHandler {
         target: "picker"
@@ -212,6 +219,9 @@ PanelWindow {
         y: picker.verticalPosition === "top" ? 32
             : picker.verticalPosition === "bottom" ? parent.height - height - 32
             : (parent.height - height) / 2
+        // Keep Canvas rasterization active during warmup. This opacity is below
+        // one 8-bit alpha step, so controls and images remain imperceptible.
+        opacity: picker.firstFrameReady || picker.errorText !== "" || (picker.initialized && !picker.sets.length) ? 1 : 0.001
         width: Math.min(1480, parent.width - 64)
         height: Math.min(720, parent.height - 64)
         // Keep the overlay surface transparent: only images and controls draw.
@@ -267,11 +277,16 @@ PanelWindow {
                             targets.push((picker.selectedIndex + count - 1) % count)
                         for (let index of targets) {
                             const loader = previewPool.itemAt(index)
-                            if (!loader || !loader.item || !loader.item.prepared)
+                            if (!loader || !loader.item || !loader.item.prepared
+                                    || (!picker.firstFrameReady && !loader.item.frameReady))
                                 return
                         }
                         // Commit all three positions in the same QML update.
                         picker.displayedIndex = picker.selectedIndex
+                        if (!picker.firstFrameReady) {
+                            picker.firstFrameReady = true
+                            prefetchTimer.start()
+                        }
                         if (picker.confirmWhenVisible) {
                             picker.confirmWhenVisible = false
                             picker.confirm()
@@ -288,7 +303,8 @@ PanelWindow {
                             required property int index
                             readonly property int displacement: carousel.offset(index, picker.displayedIndex)
                             readonly property bool onScreen: Math.abs(displacement) <= 1
-                            active: Math.abs(carousel.offset(index, picker.selectedIndex)) <= 2 || onScreen
+                            active: onScreen || Math.abs(carousel.offset(index, picker.selectedIndex)) <= 1
+                                || (picker.prefetchEnabled && Math.abs(carousel.offset(index, picker.selectedIndex)) <= 2)
                             width: carousel.hasNeighbors ? carousel.width * 0.62 : carousel.width
                             height: carousel.height
                             readonly property real sideScale: Math.min(0.65,
@@ -416,6 +432,9 @@ PanelWindow {
         readonly property real paintedHeight: imageFrame.height
         readonly property bool prepared: photo.status === Image.Error
             || (photo.status === Image.Ready && paintedImage.displayedUrl.toString() === photo.source.toString())
+        readonly property bool frameReady: photo.status === Image.Error
+            || (prepared && paintedImage.renderedUrl.toString() === photo.source.toString())
+        onFrameReadyChanged: if (frameReady) Qt.callLater(carousel.showRequested)
         onHighlightedChanged: paintedImage.requestPaint()
         onShadowEnabledChanged: paintedImage.requestPaint()
 
@@ -446,6 +465,8 @@ PanelWindow {
                 readonly property int padding: 24
                 property url imageUrl: photo.status === Image.Ready ? photo.source : ""
                 property url loadedUrl: ""
+                property url renderedUrl: ""
+                onPainted: renderedUrl = displayedUrl
                 property url displayedUrl: ""
                 property real displayedRatio: 1
                 property real pendingRatio: 1

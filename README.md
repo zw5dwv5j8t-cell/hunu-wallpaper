@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.2
+
+- Reveal switcher images and controls together after the visible previews have
+  painted, avoiding a partially assembled first view.
+- Decode the visible triplet first and defer extra neighbor prefetching until it
+  appears. Keep subsequent cycling and image reuse unchanged.
+- Use Basic Qt controls and skip the desktop platform-theme plugin for the
+  self-drawn switcher overlay, avoiding unnecessary portal/theme initialization.
+
 ## Changes in v1.16.1
 
 - Show the switcher before the wallpaper rollback snapshot finishes. Live desktop

@@ -27,5 +27,8 @@ if ! flock -n 9; then
     printf 'Wallpaper switcher is starting or unavailable. Try again.\n' >&2
     exit 1
 fi
-export QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-xdgdesktopportal}"
+# This overlay has no native dialogs or desktop-themed controls. Avoid loading
+# a platform-theme plugin (and its portal/settings startup) on every hotkey.
+export QT_QPA_PLATFORMTHEME=""
+export QT_QUICK_CONTROLS_STYLE=Basic
 quickshell --no-duplicate -p "$SCRIPT_DIR/Switcher.qml"

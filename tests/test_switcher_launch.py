@@ -25,6 +25,8 @@ if 'ipc' in sys.argv:
     with (base / 'calls').open('a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')
 else:
     assert sys.argv[1:3] == ['--no-duplicate', '-p']
+    assert os.environ['QT_QPA_PLATFORMTHEME'] == ''
+    assert os.environ['QT_QUICK_CONTROLS_STYLE'] == 'Basic'
     (base / 'started').touch()
     while not (base / 'stop').exists(): time.sleep(0.02)
 ''')
