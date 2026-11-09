@@ -20,6 +20,14 @@ across the displays.
 - Keep Canvas as the default: local OpenGL/Mesa comparisons at 1× and 2× scaling
   showed similar or slightly slower complete rendering with the native path.
   Earlier ready signals alone did not establish faster on-screen presentation.
+- Final desktop trace comparison: Canvas reached `first-view-ready` at 179 ms
+  versus 207 ms for the native trial. Keep Canvas, parallel startup, and the
+  Rust startup helper as the defaults; further renderer experiments are paused.
+  The original recorded startup was 953 ms, making the latest recorded result
+  approximately 81% faster. These are observed readiness timings from one desktop,
+  not a guarantee of screen presentation time or performance on other systems.
+- Confirmed on the desktop that Enter and Escape close the picker completely,
+  with no remaining Quickshell picker, controller, launcher, or thumbnail worker.
 - Compare your GPU with the picker closed between runs:
 
   ```bash
