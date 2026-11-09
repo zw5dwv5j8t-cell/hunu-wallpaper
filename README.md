@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.4
+
+- Replace per-preview Canvas shadow blurs with lightweight scene-graph shadow
+  layers. Keep rounded images, borders, and the complete first appearance while
+  avoiding expensive software blur work on the GUI thread.
+- Discard the unused initial triplet when the rollback snapshot updates the
+  selected wallpaper before reveal. Keep normal cycling atomic after reveal.
+- Add individual preview-painted timing events to the existing startup trace.
+
 ## Changes in v1.16.3
 
 - Load switcher preview pixels directly into one Canvas, removing the hidden

@@ -131,6 +131,10 @@ PanelWindow {
             if (!hasNavigated && intent === "" && !confirmWhenVisible) {
                 const index = sets.findIndex(function(s) { return s.name === result.current })
                 selectedIndex = Math.max(0, index)
+                // Before reveal there is no outgoing view to preserve. Drop
+                // its unused neighbor instead of painting both triplets.
+                if (!firstFrameReady)
+                    displayedIndex = selectedIndex
                 Qt.callLater(function() { carousel.showRequested() })
             } else if (hasNavigated && intent === "") {
                 schedulePreview()
@@ -357,6 +361,8 @@ PanelWindow {
                                 Accessible.name: wallpaperSet ? wallpaperSet.title : "Wallpaper preview"
                                 Accessible.description: wallpaperSet && !wallpaperSet.previewIsSource
                                     ? "Monitor crop preview" : "Full source preview"
+                                onFrameReadyChanged: if (frameReady && !picker.firstFrameReady)
+                                    picker.trace("preview-painted-" + slot.index)
                                 onPreparedChanged: if (prepared) {
                                     if (!picker.firstFrameReady)
                                         picker.trace("preview-ready-" + slot.index)
@@ -463,7 +469,6 @@ PanelWindow {
             || (prepared && paintedImage.renderedUrl.toString() === paintedImage.imageUrl.toString())
         onFrameReadyChanged: if (frameReady) Qt.callLater(carousel.showRequested)
         onHighlightedChanged: paintedImage.requestPaint()
-        onShadowEnabledChanged: paintedImage.requestPaint()
 
         // The controller supplies header geometry. Canvas is the only pixel
         // loader; avoid a second hidden Image and its serial decode/cache path.
@@ -475,6 +480,22 @@ PanelWindow {
                 ? Math.min(preview.width, preview.height * preview.aspectRatio) : 0
             height: width / Math.max(0.001, preview.aspectRatio)
             readonly property real cornerRadius: Math.min(22, width / 10, height / 10)
+            // Scene-graph rectangles approximate a soft shadow without
+            // blurring a full preview bitmap on the GUI thread.
+            Repeater {
+                model: preview.shadowEnabled ? 3 : 0
+                delegate: Rectangle {
+                    required property int index
+                    readonly property real spread: (index + 1) * 3
+                    x: -spread
+                    y: 6 - spread
+                    width: imageFrame.width + spread * 2
+                    height: imageFrame.height + spread * 2
+                    radius: imageFrame.cornerRadius + spread
+                    color: preview.highlighted ? "#12000000" : "#0b000000"
+                    visible: imageFrame.width > 0
+                }
+            }
             Canvas {
                 id: paintedImage
                 objectName: "roundedImageCanvas"
@@ -577,17 +598,6 @@ PanelWindow {
                         ctx.lineTo(x, y + radius)
                         ctx.quadraticCurveTo(x, y, x + radius, y)
                         ctx.closePath()
-                    }
-                    if (preview.shadowEnabled) {
-                        roundedPath(padding, padding, w, h, r)
-                        ctx.shadowColor = preview.highlighted ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.2)"
-                        ctx.shadowBlur = 14
-                        ctx.shadowOffsetY = 6
-                        ctx.fillStyle = "rgba(0,0,0,0.3)"
-                        ctx.fill()
-                        ctx.shadowColor = "transparent"
-                        ctx.shadowBlur = 0
-                        ctx.shadowOffsetY = 0
                     }
                     ctx.save()
                     roundedPath(padding, padding, w, h, r)
