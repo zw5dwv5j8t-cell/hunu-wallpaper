@@ -37,6 +37,15 @@ PanelWindow {
                 elapsedMs: Date.now() - launched, qmlElapsedMs: Date.now() - startupStarted}))
         }
     }
+    property bool decodingStarted: false
+    readonly property bool waitForInitialSelection: Quickshell.env("HUNU_SWITCHER_WAIT_INITIAL") === "1"
+    function beginDecoding() {
+        initialSelectionTimer.stop()
+        if (!decodingStarted) {
+            decodingStarted = true
+            trace("preview-decoding-started")
+        }
+    }
     property bool firstFrameReady: false
     property bool prefetchEnabled: false
     property bool initialized: false
@@ -58,6 +67,7 @@ PanelWindow {
         if (!busy && sets.length) {
             hasNavigated = true
             selectedIndex = (selectedIndex + step + sets.length) % sets.length
+            beginDecoding()
         }
     }
     function schedulePreview() {
@@ -139,6 +149,7 @@ PanelWindow {
             } else if (hasNavigated && intent === "") {
                 schedulePreview()
             }
+            beginDecoding()
             return
         }
         if (result.event === "catalog" || result.event === "ready") {
@@ -163,6 +174,10 @@ PanelWindow {
             initialized = true
             visible = true
             controls.forceActiveFocus()
+            if (snapshotReady || !waitForInitialSelection || backend !== "noctalia" || preferences.livePreview === false)
+                beginDecoding()
+            else
+                initialSelectionTimer.start()
             return
         }
         inFlight = ""
@@ -194,6 +209,9 @@ PanelWindow {
         sessionProcess.command = ["python3", helper("switcher-controller.py"), "session"]
         sessionProcess.running = true
     }
+    // Allow fast current-wallpaper queries to choose the initial triplet.
+    // Slow or failed IPC adds at most 60 ms before previews start loading.
+    Timer { id: initialSelectionTimer; interval: 60; onTriggered: picker.beginDecoding() }
     Timer {
         id: prefetchTimer
         interval: 100
@@ -330,8 +348,9 @@ PanelWindow {
                             required property int index
                             readonly property int displacement: carousel.offset(index, picker.displayedIndex)
                             readonly property bool onScreen: Math.abs(displacement) <= 1
-                            active: onScreen || Math.abs(carousel.offset(index, picker.selectedIndex)) <= 1
-                                || (picker.prefetchEnabled && Math.abs(carousel.offset(index, picker.selectedIndex)) <= 2)
+                            active: picker.decodingStarted && (onScreen
+                                || Math.abs(carousel.offset(index, picker.selectedIndex)) <= 1
+                                || (picker.prefetchEnabled && Math.abs(carousel.offset(index, picker.selectedIndex)) <= 2))
                             width: carousel.hasNeighbors ? carousel.width * 0.62 : carousel.width
                             height: carousel.height
                             readonly property real sideScale: Math.min(0.65,

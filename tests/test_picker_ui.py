@@ -63,7 +63,7 @@ class PickerInteractionTests(unittest.TestCase):
             module = base / 'Quickshell'
             module.mkdir()
             (module / 'qmldir').write_text('module Quickshell\nFloatingWindow 1.0 FloatingWindow.qml\nsingleton Quickshell 1.0 Quickshell.qml\n')
-            (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: []; function env(name) { return "" } }')
+            (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: []; function env(name) { return name === "HUNU_SWITCHER_WAIT_INITIAL" ? "1" : "" } }')
             (module / 'FloatingWindow.qml').write_text('import QtQuick\nimport QtQuick.Window\nWindow { width: 1280; height: 900; signal closed() }')
             source = (ROOT / 'src' / 'Switcher.qml').read_text()
             source = source.replace('import Quickshell.Wayland', '').replace('PanelWindow {', 'FloatingWindow {')
@@ -87,6 +87,29 @@ class PickerInteractionTests(unittest.TestCase):
             image_url = (base / 'preview.png').as_uri()
             sets = [dict(name=n, title=n, previewUrl=image_url, fallbackPreviewUrl=image_url, previewIsSource=True, previewSize=[400, 200], fallbackPreviewSize=[400, 200])
                     for n in ['First', 'Second', 'Third']]
+            def visual_items(item):
+                return [item] + [descendant for child in item.childItems() for descendant in visual_items(child)]
+
+            probe_sets = [dict(sets[0], name=f'Probe {i}') for i in range(9)]
+            receive(dict(event='catalog', sets=probe_sets, layout={}, hidden=0, backend='noctalia',
+                         focusedOutput='', current='Probe 0'))
+            QTest.qWait(10)
+            self.assertFalse(root.property('decodingStarted'), 'Wait briefly for the initial selection')
+            self.assertFalse(any(child.objectName() == 'roundedImageCanvas' for child in visual_items(root.contentItem())))
+            receive(dict(event='ready', current='Probe 1', liveEnabled=False, liveReason=''))
+            self.assertTrue(root.property('decodingStarted'))
+            self.assertEqual(root.property('selectedIndex'), 1)
+            self.assertEqual(root.property('displayedIndex'), 1)
+            assets = [child for child in visual_items(root.contentItem())
+                      if child.objectName() in ('currentPreview', 'previousPreview', 'nextPreview', 'prefetchedPreview')]
+            self.assertEqual(sorted(child.property('neighborIndex') for child in assets), [0, 1, 2],
+                             'Only decode the triplet selected by the snapshot')
+            root.setProperty('sets', [])
+            root.setProperty('initialized', False)
+            root.setProperty('snapshotReady', False)
+            root.setProperty('decodingStarted', False)
+            root.setProperty('selectedIndex', 0)
+            root.setProperty('displayedIndex', 0)
             receive(dict(event='catalog', sets=sets, layout={}, hidden=0, backend='noctalia', liveEnabled=True,
                          liveReason='', focusedOutput='', current='First'))
             self.assertTrue(root.property('initialized'))
@@ -383,6 +406,17 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertFalse(quit_requests)
             receive(dict(event='cancelled'))
             self.assertTrue(quit_requests)
+            # A slow snapshot must not leave the picker waiting indefinitely.
+            root.setProperty('sets', [])
+            root.setProperty('initialized', False)
+            root.setProperty('snapshotReady', False)
+            root.setProperty('decodingStarted', False)
+            receive(dict(event='catalog', sets=probe_sets, layout={}, hidden=0, backend='noctalia',
+                         focusedOutput='', current='Probe 0'))
+            QTest.qWait(100)
+            self.assertTrue(root.property('decodingStarted'), 'Slow snapshot must release the 60 ms gate')
+            self.assertFalse(root.property('snapshotReady'))
+            self.assertFalse(root.property('liveEnabled'), 'Fallback must not enable unsafe desktop previews')
             root.hide()
             engine.deleteLater()
             app.processEvents()

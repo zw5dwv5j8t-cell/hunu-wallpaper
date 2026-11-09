@@ -8,6 +8,25 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.6
+
+- Add an opt-in startup experiment: set `HUNU_SWITCHER_WAIT_INITIAL=1` to wait up
+  to 60 ms for the current wallpaper before decoding the first preview triplet.
+  A fast snapshot selects the correct neighbors immediately; slow IPC falls
+  back to the remembered selection. Escape restoration stays unchanged.
+- Keep immediate preview loading as the default: an offscreen Qt comparison
+  with a simulated 20 ms snapshot found the experimental path slower. Compare
+  both on your desktop with the picker closed between runs:
+
+  ```bash
+  HUNU_SWITCHER_TRACE=1 ~/.config/hunu-wallpaper/switcher.sh
+  HUNU_SWITCHER_WAIT_INITIAL=1 HUNU_SWITCHER_TRACE=1 ~/.config/hunu-wallpaper/switcher.sh
+  ```
+
+  Repeat each command a few times and compare `first-view-ready` timings and
+  the initial `preview-ready-*` indices. `preview-decoding-started` now marks
+  when the first loads begin. No resident process or new setting is added.
+
 ## Changes in v1.16.5
 
 - Reuse persistent switcher thumbnails bounded to 1000×700 pixels, including
