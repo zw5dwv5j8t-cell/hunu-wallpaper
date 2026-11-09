@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${HUNU_SWITCHER_TRACE:-0}" == 1 ]]; then
+    export HUNU_SWITCHER_STARTED_MS="$(date +%s%3N)"
+    printf 'HUNU_SWITCHER {"stage":"launcher","elapsedMs":0}\n' >&2
+fi
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 ENABLED="$(python3 "$SCRIPT_DIR/switcher-settings.py" enabled)"
 [[ "$ENABLED" == true ]] || exit 0

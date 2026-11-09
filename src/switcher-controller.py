@@ -13,6 +13,21 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
+from urllib.parse import unquote, urlparse
+
+STARTED = time.monotonic()
+
+
+def trace(stage, **details):
+    if os.environ.get('HUNU_SWITCHER_TRACE') == '1':
+        launched = os.environ.get('HUNU_SWITCHER_STARTED_MS', '')
+        if launched.isdigit():
+            details['launchElapsedMs'] = round(time.time() * 1000 - int(launched), 1)
+        print('HUNU_SWITCHER ' + json.dumps(dict(stage=stage,
+              elapsedMs=round((time.monotonic() - STARTED) * 1000, 1), **details)),
+              file=sys.stderr, flush=True)
+
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('saved_sets', HERE / 'list-wallpaper-sets.py')
@@ -85,6 +100,42 @@ def png_size(path):
     return struct.unpack('>II', header[16:24])
 
 
+def preview_size(path):
+    """Read PNG/JPEG geometry without decoding pixels; generated JPEGs are oriented."""
+    try:
+        return png_size(path)
+    except ValueError:
+        pass
+    with open(path, 'rb') as stream:
+        if stream.read(2) != b'\xff\xd8':
+            raise ValueError('Unsupported preview header.')
+        while True:
+            if stream.read(1) != b'\xff':
+                raise ValueError('Invalid JPEG marker.')
+            marker = stream.read(1)
+            while marker == b'\xff':
+                marker = stream.read(1)
+            if not marker or marker in (b'\xda', b'\xd9'):
+                raise ValueError('Missing JPEG dimensions.')
+            if marker == b'\x00' or marker == b'\xd8' or 0xd0 <= marker[0] <= 0xd7:
+                continue
+            length = stream.read(2)
+            if len(length) != 2:
+                raise ValueError('Truncated JPEG header.')
+            size = struct.unpack('>H', length)[0]
+            if size < 2:
+                raise ValueError('Invalid JPEG segment.')
+            if marker[0] in (0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf):
+                data = stream.read(5)
+                if size < 7 or len(data) != 5:
+                    raise ValueError('Truncated JPEG dimensions.')
+                height, width = struct.unpack('>HH', data[1:])
+                if not width or not height:
+                    raise ValueError('Invalid JPEG dimensions.')
+                return width, height
+            stream.seek(size - 2, 1)
+
+
 def compatible(item, monitors, dimensions=None):
     if item['legacy'] or item['error']:
         return False
@@ -118,9 +169,10 @@ def library(directory):
     signature = fingerprint()
     try:
         cached = json.loads(cache.read_text())
-        if (cached.get('version') == 1 and cached.get('directory') == str(directory)
+        if (cached.get('version') == 2 and cached.get('directory') == str(directory)
                 and cached.get('signature') == signature
                 and isinstance(cached.get('sets'), list) and isinstance(cached.get('dimensions'), dict)):
+            trace('library-index', hit=True, sets=len(cached['sets']))
             return cached['sets'], cached['dimensions']
     except (OSError, ValueError, AttributeError):
         pass
@@ -132,13 +184,21 @@ def library(directory):
                 dimensions[row['file']] = png_size(row['file'])
             except (OSError, ValueError):
                 pass
+    for item in items:
+        if item['previewUrl']:
+            try:
+                path = unquote(urlparse(item['previewUrl']).path)
+                item['sourcePreviewSize'] = preview_size(path)
+            except (OSError, ValueError):
+                item['sourcePreviewSize'] = None
+    trace('library-index', hit=False, sets=len(items))
     temporary = None
     try:
         if fingerprint() == signature:
             cache.parent.mkdir(parents=True, exist_ok=True)
             fd, temporary = tempfile.mkstemp(dir=cache.parent, prefix='.switcher-library-')
             with os.fdopen(fd, 'w') as stream:
-                json.dump(dict(version=1, directory=str(directory), signature=signature,
+                json.dump(dict(version=2, directory=str(directory), signature=signature,
                                sets=items, dimensions=dimensions), stream)
             os.replace(temporary, cache)
     except OSError:
@@ -151,7 +211,9 @@ def library(directory):
 
 def listing():
     config, values = configuration()
+    trace('configuration')
     monitors, focused = active_monitors()
+    trace('monitors')
     layout = saved_sets.load_layout(config, values)
     if set(layout) != set(monitors):
         raise ValueError('Active outputs differ from Monitor Setup. Update the setup in Hunu first.')
@@ -163,6 +225,10 @@ def listing():
         # fallback rather than suggesting that the original can be reconstructed.
         widest = max(item['monitors'], key=lambda row: dimensions[row['file']][0] / dimensions[row['file']][1])
         item['fallbackPreviewUrl'] = widest['url']
+        item['fallbackPreviewSize'] = dimensions[widest['file']]
+        if item['previewUrl'] and not item.get('sourcePreviewSize'):
+            item['previewUrl'] = ''
+        item['previewSize'] = item.get('sourcePreviewSize') if item['previewUrl'] else item['fallbackPreviewSize']
         item['previewIsSource'] = bool(item['previewUrl'])
         item['previewUrl'] = item['previewUrl'] or widest['url']
     try:
@@ -287,8 +353,10 @@ def run_session():
         signal.signal(signal.SIGINT, stop)
         try:
             result = listing()
+            trace('catalog', compatibleSets=len(result['sets']))
             send('catalog', **result)
             live, reason = session.capture(result)
+            trace('snapshot', liveEnabled=live)
             if live:
                 result['current'] = next((s['name'] for s in result['sets'] if
                     {row['output']: str(Path(row['file']).resolve()) for row in s['monitors']} == session.original), '')

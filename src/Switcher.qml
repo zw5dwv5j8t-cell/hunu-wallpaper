@@ -28,6 +28,15 @@ PanelWindow {
     property string verticalPosition: "center"
     property bool showActionButtons: true
     property int previewDelayMs: 400
+    readonly property double startupStarted: Date.now()
+    readonly property bool traceEnabled: Quickshell.env("HUNU_SWITCHER_TRACE") === "1"
+    function trace(stage) {
+        if (traceEnabled) {
+            const launched = Number(Quickshell.env("HUNU_SWITCHER_STARTED_MS")) || startupStarted
+            console.info("HUNU_SWITCHER " + JSON.stringify({stage: stage,
+                elapsedMs: Date.now() - launched, qmlElapsedMs: Date.now() - startupStarted}))
+        }
+    }
     property bool firstFrameReady: false
     property bool prefetchEnabled: false
     property bool initialized: false
@@ -112,6 +121,8 @@ PanelWindow {
         let result
         try { result = JSON.parse(line) }
         catch (error) { errorText = "Could not read preview session response."; return }
+        if (result.event === "catalog" || result.event === "ready")
+            trace(result.event + "-received")
         if (result.event === "ready" && initialized) {
             snapshotReady = true
             liveEnabled = result.liveEnabled
@@ -175,6 +186,7 @@ PanelWindow {
     }
     onClosed: cancel()
     Component.onCompleted: {
+        trace("qml-ready")
         sessionProcess.command = ["python3", helper("switcher-controller.py"), "session"]
         sessionProcess.running = true
     }
@@ -193,7 +205,13 @@ PanelWindow {
         stdinEnabled: true
         property string errorOutput: ""
         stdout: SplitParser { onRead: data => picker.receive(data) }
-        stderr: StdioCollector { onStreamFinished: sessionProcess.errorOutput = text.trim() }
+        stderr: SplitParser {
+            onRead: data => {
+                sessionProcess.errorOutput += data + "\n"
+                if (picker.traceEnabled)
+                    console.info(data)
+            }
+        }
         onExited: function(code) {
             if (!picker.normalExit) {
                 picker.errorText = errorOutput || "The preview session ended. Close and reopen the switcher."
@@ -285,6 +303,7 @@ PanelWindow {
                         picker.displayedIndex = picker.selectedIndex
                         if (!picker.firstFrameReady) {
                             picker.firstFrameReady = true
+                            picker.trace("first-view-ready")
                             prefetchTimer.start()
                         }
                         if (picker.confirmWhenVisible) {
@@ -329,6 +348,8 @@ PanelWindow {
                                 readonly property var wallpaperSet: picker.sets[slot.index] || null
                                 source: wallpaperSet ? wallpaperSet.previewUrl : ""
                                 fallbackSource: wallpaperSet ? wallpaperSet.fallbackPreviewUrl : ""
+                                sourceGeometry: wallpaperSet && wallpaperSet.previewSize ? wallpaperSet.previewSize : [1, 1]
+                                fallbackGeometry: wallpaperSet && wallpaperSet.fallbackPreviewSize ? wallpaperSet.fallbackPreviewSize : sourceGeometry
                                 // Identical decode size in every position: moving
                                 // from side to center never reloads the asset.
                                 sourceSize: Qt.size(1000, 700)
@@ -336,7 +357,11 @@ PanelWindow {
                                 Accessible.name: wallpaperSet ? wallpaperSet.title : "Wallpaper preview"
                                 Accessible.description: wallpaperSet && !wallpaperSet.previewIsSource
                                     ? "Monitor crop preview" : "Full source preview"
-                                onPreparedChanged: if (prepared) Qt.callLater(carousel.showRequested)
+                                onPreparedChanged: if (prepared) {
+                                    if (!picker.firstFrameReady)
+                                        picker.trace("preview-ready-" + slot.index)
+                                    Qt.callLater(carousel.showRequested)
+                                }
                                 MouseArea {
                                     id: previewMouse
                                     anchors.fill: parent
@@ -423,6 +448,8 @@ PanelWindow {
         id: preview
         property url source: ""
         property url fallbackSource: ""
+        property var sourceGeometry: [1, 1]
+        property var fallbackGeometry: [1, 1]
         property size sourceSize: Qt.size(1600, 1000)
         property bool highlighted: false
         property bool shadowEnabled: true
@@ -430,27 +457,16 @@ PanelWindow {
         readonly property real aspectRatio: paintedImage.displayedRatio
         readonly property real paintedWidth: imageFrame.width
         readonly property real paintedHeight: imageFrame.height
-        readonly property bool prepared: photo.status === Image.Error
-            || (photo.status === Image.Ready && paintedImage.displayedUrl.toString() === photo.source.toString())
-        readonly property bool frameReady: photo.status === Image.Error
-            || (prepared && paintedImage.renderedUrl.toString() === photo.source.toString())
+        readonly property bool prepared: paintedImage.status === Image.Error
+            || (paintedImage.status === Image.Ready && paintedImage.displayedUrl.toString() === paintedImage.imageUrl.toString())
+        readonly property bool frameReady: paintedImage.status === Image.Error
+            || (prepared && paintedImage.renderedUrl.toString() === paintedImage.imageUrl.toString())
         onFrameReadyChanged: if (frameReady) Qt.callLater(carousel.showRequested)
         onHighlightedChanged: paintedImage.requestPaint()
         onShadowEnabledChanged: paintedImage.requestPaint()
 
-        // Keep image decoding bounded and use its intrinsic size for aspect fit.
-        Image {
-            id: photo
-            objectName: "previewDecoder"
-            visible: false
-            source: preview.failedUrl === preview.source.toString() ? preview.fallbackSource : preview.source
-            sourceSize: preview.sourceSize
-            asynchronous: true
-            onStatusChanged: {
-                if (status === Image.Error)
-                    preview.failedUrl = preview.source.toString()
-            }
-        }
+        // The controller supplies header geometry. Canvas is the only pixel
+        // loader; avoid a second hidden Image and its serial decode/cache path.
         Item {
             id: imageFrame
             objectName: "roundedImageFrame"
@@ -463,7 +479,9 @@ PanelWindow {
                 id: paintedImage
                 objectName: "roundedImageCanvas"
                 readonly property int padding: 24
-                property url imageUrl: photo.status === Image.Ready ? photo.source : ""
+                property int status: Image.Null
+                property url imageUrl: preview.failedUrl === preview.source.toString() ? preview.fallbackSource : preview.source
+                readonly property var geometry: preview.failedUrl === preview.source.toString() ? preview.fallbackGeometry : preview.sourceGeometry
                 property url loadedUrl: ""
                 property url renderedUrl: ""
                 onPainted: renderedUrl = displayedUrl
@@ -478,9 +496,23 @@ PanelWindow {
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
                 function imageReady() {
-                    if (imageUrl.toString() === "" || !isImageLoaded(imageUrl))
+                    if (imageUrl.toString() === "")
                         return
+                    if (isImageError(imageUrl)) {
+                        if (preview.failedUrl !== preview.source.toString()
+                                && preview.fallbackSource.toString() !== ""
+                                && preview.fallbackSource.toString() !== imageUrl.toString()) {
+                            preview.failedUrl = preview.source.toString()
+                        } else {
+                            status = Image.Error
+                        }
+                        return
+                    }
+                    if (!isImageLoaded(imageUrl))
+                        return
+                    status = Image.Ready
                     if (displayedUrl.toString() === imageUrl.toString()) {
+                        displayedRatio = pendingRatio
                         requestPaint()
                         return
                     }
@@ -499,15 +531,31 @@ PanelWindow {
                         unloadImage(loadedUrl)
                     loadedUrl = imageUrl
                     if (imageUrl.toString() !== "") {
-                        pendingRatio = photo.implicitWidth / Math.max(1, photo.implicitHeight)
+                        status = Image.Loading
+                        pendingRatio = Math.max(1, geometry[0]) / Math.max(1, geometry[1])
                         loadImage(imageUrl, preview.sourceSize)
-                        if (isImageLoaded(imageUrl))
+                        requestPaint()
+                        if (isImageLoaded(imageUrl) || isImageError(imageUrl))
                             imageReady()
                     }
                 }
-                onImageUrlChanged: reload()
+                onImageUrlChanged: reloadTimer.restart()
+                onGeometryChanged: {
+                    pendingRatio = Math.max(1, geometry[0]) / Math.max(1, geometry[1])
+                    if (isImageLoaded(imageUrl))
+                        imageReady()
+                }
                 onImageLoaded: imageReady()
-                Component.onCompleted: reload()
+                // Canvas may report failed loads only through isImageError(),
+                // without imageLoaded. Poll only while a request is pending.
+                Timer {
+                    interval: 16
+                    repeat: true
+                    running: paintedImage.status === Image.Loading
+                    onTriggered: paintedImage.imageReady()
+                }
+                Timer { id: reloadTimer; interval: 0; onTriggered: paintedImage.reload() }
+                Component.onCompleted: reloadTimer.start()
                 onPaint: {
                     const ctx = getContext("2d")
                     ctx.reset()

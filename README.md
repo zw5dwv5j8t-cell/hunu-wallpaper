@@ -8,6 +8,25 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.3
+
+- Load switcher preview pixels directly into one Canvas, removing the hidden
+  Image loader. Read and cache preview geometry from PNG/JPEG headers instead.
+- Preserve rounded corners, outgoing images during replacement loads, bounded
+  neighbor caching, and the complete first view. Invalid source previews fall
+  back to a monitor crop.
+- Add optional startup timing. Close the picker, then run:
+
+  ```bash
+  HUNU_SWITCHER_TRACE=1 ~/.config/hunu-wallpaper/switcher.sh
+  ```
+
+  `HUNU_SWITCHER` lines report launcher/QML startup, configuration, monitor
+  detection, library-index hit/miss, catalog delivery, individual previews,
+  first-view readiness, and rollback snapshot completion. `elapsedMs` on QML
+  events and `launchElapsedMs` on controller events count from the launcher;
+  controller `elapsedMs` measures its own work. Normal launches stay quiet.
+
 ## Changes in v1.16.2
 
 - Reveal switcher images and controls together after the visible previews have

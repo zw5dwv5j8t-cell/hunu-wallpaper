@@ -78,6 +78,30 @@ class SwitcherFixture(unittest.TestCase):
 
 
 class SwitcherTests(SwitcherFixture):
+    def test_preview_header_geometry_and_trace_output(self):
+        self.make_set('geometry')
+        manifest = self.output / 'geometry.hunu.json'
+        data = json.loads(manifest.read_text())
+        data['preview'] = 'geometry.preview.jpg'
+        manifest.write_text(json.dumps(data))
+        preview = self.output / data['preview']
+        subprocess.run(['magick', '-size', '30x10', 'xc:blue', str(preview)], check=True)
+        self.env['HUNU_SWITCHER_TRACE'] = '1'
+        reply = self.run_controller('list')
+        self.assertEqual(reply.returncode, 0, reply.stderr)
+        item, = json.loads(reply.stdout)['sets']
+        self.assertEqual(item['previewSize'], [30, 10])
+        self.assertEqual(item['fallbackPreviewSize'], [12, 8])
+        trace = [json.loads(line.removeprefix('HUNU_SWITCHER ')) for line in reply.stderr.splitlines()]
+        self.assertEqual([event['stage'] for event in trace], ['configuration', 'monitors', 'library-index'])
+        self.assertFalse(trace[-1]['hit'])
+        self.assertTrue(json.loads(self.run_controller('list').stderr.splitlines()[-1].removeprefix('HUNU_SWITCHER '))['hit'])
+        preview.write_bytes(b'broken JPEG')
+        item, = self.listing()['sets']
+        self.assertFalse(item['previewIsSource'])
+        self.assertEqual(item['previewSize'], [12, 8])
+
+
     def test_library_cache_invalidates_headers_metadata_and_deleted_files(self):
         self.make_set('cached')
         self.assertEqual(len(self.listing()['sets']), 1)
@@ -120,7 +144,7 @@ class SwitcherTests(SwitcherFixture):
         data = json.loads(manifest.read_text())
         data['preview'] = 'new.preview.jpg'
         manifest.write_text(json.dumps(data))
-        (self.output / 'new.preview.jpg').write_bytes(b'preview fixture')
+        png(self.output / 'new.preview.jpg', 24, 8)
         item, = self.listing()['sets']
         self.assertTrue(item['previewIsSource'])
         self.assertEqual(item['previewUrl'], (self.output / 'new.preview.jpg').as_uri())

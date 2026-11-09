@@ -63,7 +63,7 @@ class PickerInteractionTests(unittest.TestCase):
             module = base / 'Quickshell'
             module.mkdir()
             (module / 'qmldir').write_text('module Quickshell\nFloatingWindow 1.0 FloatingWindow.qml\nsingleton Quickshell 1.0 Quickshell.qml\n')
-            (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: [] }')
+            (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: []; function env(name) { return "" } }')
             (module / 'FloatingWindow.qml').write_text('import QtQuick\nimport QtQuick.Window\nWindow { width: 1280; height: 900; signal closed() }')
             source = (ROOT / 'src' / 'Switcher.qml').read_text()
             source = source.replace('import Quickshell.Wayland', '').replace('PanelWindow {', 'FloatingWindow {')
@@ -85,7 +85,7 @@ class PickerInteractionTests(unittest.TestCase):
             fixture.fill(Qt.GlobalColor.darkBlue)
             self.assertTrue(fixture.save(str(base / 'preview.png')))
             image_url = (base / 'preview.png').as_uri()
-            sets = [dict(name=n, title=n, previewUrl=image_url, fallbackPreviewUrl=image_url, previewIsSource=True)
+            sets = [dict(name=n, title=n, previewUrl=image_url, fallbackPreviewUrl=image_url, previewIsSource=True, previewSize=[400, 200], fallbackPreviewSize=[400, 200])
                     for n in ['First', 'Second', 'Third']]
             receive(dict(event='catalog', sets=sets, layout={}, hidden=0, backend='noctalia', liveEnabled=True,
                          liveReason='', focusedOutput='', current='First'))
@@ -215,10 +215,14 @@ class PickerInteractionTests(unittest.TestCase):
             portrait.fill(Qt.GlobalColor.darkGreen)
             self.assertTrue(portrait.save(str(base / 'portrait.png')))
             portrait_sets = [dict(s) for s in sets]
+            portrait_sets[0]['previewSize'] = [200, 400]
             portrait_sets[0]['previewUrl'] = (base / 'portrait.png').as_uri()
             root.setProperty('sets', portrait_sets)
-            QTest.qWait(240)
-            self.assertAlmostEqual(frame.width() / frame.height(), 0.5)
+            deadline = time.monotonic() + 3
+            while frame.width() / max(1, frame.height()) != 0.5 and time.monotonic() < deadline:
+                QTest.qWait(10)
+                time.sleep(0.005)
+            self.assertAlmostEqual(frame.width() / frame.height(), 0.5, msg=str([(k, canvas.property(k)) for k in ('imageUrl', 'geometry', 'pendingRatio', 'displayedRatio', 'status')]))
             self.assertAlmostEqual(frame.x() + frame.width() / 2, current.width() / 2, delta=0.5)
             self.assertAlmostEqual(frame.y() + frame.height() / 2, current.height() / 2, delta=0.5)
             assert_clipped(QColor(Qt.GlobalColor.darkGreen))
@@ -226,6 +230,21 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertLessEqual(frame.height(), current.height())
             root.setProperty('sets', sets)
             QTest.qWait(240)
+
+            corrupt = base / 'corrupt-preview.jpg'
+            corrupt.write_bytes(b'not an image')
+            broken_sets = [dict(s) for s in sets]
+            broken_sets[0]['previewUrl'] = corrupt.as_uri()
+            root.setProperty('sets', broken_sets)
+            deadline = time.monotonic() + 3
+            while (canvas.property('imageUrl').toString() != image_url or canvas.property('status') != 1) and time.monotonic() < deadline:
+                QTest.qWait(10)
+                time.sleep(0.005)
+            QTest.qWait(200)
+            self.assertEqual(canvas.property('status'), 1, 'Failed source should use its monitor-crop fallback')
+            self.assertEqual(canvas.property('displayedUrl').toString(), image_url)
+            root.setProperty('sets', sets)
+            QTest.qWait(50)
 
             # A cold incoming neighbor must hold the whole outgoing triplet,
             # not update the center and leave an old duplicate at the side.
@@ -236,7 +255,7 @@ class PickerInteractionTests(unittest.TestCase):
                 path = base / f'cache-{i}.png'
                 path.write_bytes((base / 'preview.png').read_bytes())
                 cache_sets.append(dict(name=f'Cache {i}', title=f'Cache {i}', previewUrl=path.as_uri(),
-                                       fallbackPreviewUrl=path.as_uri(), previewIsSource=True))
+                                       fallbackPreviewUrl=path.as_uri(), previewIsSource=True, previewSize=[400, 200], fallbackPreviewSize=[400, 200]))
             release.clear()
             requested.clear()
             cache_sets[7]['previewUrl'] = f'http://127.0.0.1:{server.server_port}/cold-seven.png'
@@ -297,7 +316,7 @@ class PickerInteractionTests(unittest.TestCase):
             following = find_visual(root.contentItem(), 'nextPreview')
             next_frame = find_visual(following, 'roundedImageFrame')
             old_frame_size = (next_frame.width(), next_frame.height())
-            decoder = find_visual(following, 'previewDecoder')
+            decoder = find_visual(following, 'roundedImageCanvas')
             reloads = []
             decoder.statusChanged.connect(lambda: reloads.append(decoder.property('status')))
             # The same prepared asset must move from side to center. It must not
