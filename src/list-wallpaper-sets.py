@@ -75,11 +75,12 @@ def scan(directory, selected_name=None):
     return sorted(sets, key=lambda item: item['modified'], reverse=True)
 
 
-def load_layout(config):
-    helper = Path(__file__).resolve().with_name('load-monitor-config.sh')
-    result = subprocess.run(['bash', str(helper), config], capture_output=True,
-                            text=True, timeout=5, check=True)
-    values = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+def load_layout(config, values=None):
+    if values is None:
+        helper = Path(__file__).resolve().with_name('load-monitor-config.sh')
+        result = subprocess.run(['bash', str(helper), config], capture_output=True,
+                                text=True, timeout=5, check=True)
+        values = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
     layout = {}
     for slot in (1, 2, 3):
         prefix = f'MONITOR_{slot}_'

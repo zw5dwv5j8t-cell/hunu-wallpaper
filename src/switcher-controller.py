@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Headless saved-set controller used by the short-lived wallpaper picker."""
+from concurrent.futures import ThreadPoolExecutor
 import argparse
 import fcntl
 import importlib.util
@@ -84,31 +85,83 @@ def png_size(path):
     return struct.unpack('>II', header[16:24])
 
 
-def compatible(item, monitors):
+def compatible(item, monitors, dimensions=None):
     if item['legacy'] or item['error']:
         return False
     rows = item['monitors']
     if len(rows) != len(monitors) or {row['output'] for row in rows} != set(monitors):
         return False
     try:
-        return all(png_size(row['file']) == monitors[row['output']] for row in rows)
+        return all((tuple(dimensions.get(row['file'], ())) if dimensions is not None else png_size(row['file']))
+                   == monitors[row['output']] for row in rows)
     except (OSError, ValueError):
         return False
+
+
+def library(directory):
+    """Cache discovery and headers; selected files are revalidated before Apply."""
+    directory = Path(directory).expanduser().resolve()
+    cache = state_path().with_name('switcher-library.json')
+
+    def fingerprint():
+        entries = []
+        if not directory.exists():
+            return []
+        with os.scandir(directory) as scan:
+            for entry in scan:
+                if entry.name.endswith(('.png', '.hunu.json', '.preview.jpg')):
+                    stat = entry.stat()
+                    entries.append((entry.name, stat.st_size, stat.st_mtime_ns,
+                                    stat.st_ctime_ns, stat.st_ino))
+        return [list(row) for row in sorted(entries)]
+
+    signature = fingerprint()
+    try:
+        cached = json.loads(cache.read_text())
+        if (cached.get('version') == 1 and cached.get('directory') == str(directory)
+                and cached.get('signature') == signature
+                and isinstance(cached.get('sets'), list) and isinstance(cached.get('dimensions'), dict)):
+            return cached['sets'], cached['dimensions']
+    except (OSError, ValueError, AttributeError):
+        pass
+    items = saved_sets.scan(directory)
+    dimensions = {}
+    for item in items:
+        for row in item['monitors']:
+            try:
+                dimensions[row['file']] = png_size(row['file'])
+            except (OSError, ValueError):
+                pass
+    temporary = None
+    try:
+        if fingerprint() == signature:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            fd, temporary = tempfile.mkstemp(dir=cache.parent, prefix='.switcher-library-')
+            with os.fdopen(fd, 'w') as stream:
+                json.dump(dict(version=1, directory=str(directory), signature=signature,
+                               sets=items, dimensions=dimensions), stream)
+            os.replace(temporary, cache)
+    except OSError:
+        pass
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+    return items, dimensions
 
 
 def listing():
     config, values = configuration()
     monitors, focused = active_monitors()
-    layout = saved_sets.load_layout(config)
+    layout = saved_sets.load_layout(config, values)
     if set(layout) != set(monitors):
         raise ValueError('Active outputs differ from Monitor Setup. Update the setup in Hunu first.')
-    all_sets = saved_sets.scan(values['OUTPUT_DIR'])
-    sets = sorted((item for item in all_sets if compatible(item, monitors)),
+    all_sets, dimensions = library(values['OUTPUT_DIR'])
+    sets = sorted((item for item in all_sets if compatible(item, monitors, dimensions)),
                   key=lambda item: (item['modified'], item['name']), reverse=True)
     for item in sets:
         # Old sets have only monitor crops; choose the widest as a single-image
         # fallback rather than suggesting that the original can be reconstructed.
-        widest = max(item['monitors'], key=lambda row: png_size(row['file'])[0] / png_size(row['file'])[1])
+        widest = max(item['monitors'], key=lambda row: dimensions[row['file']][0] / dimensions[row['file']][1])
         item['fallbackPreviewUrl'] = widest['url']
         item['previewIsSource'] = bool(item['previewUrl'])
         item['previewUrl'] = item['previewUrl'] or widest['url']
@@ -152,14 +205,17 @@ class PreviewSession:
             return False, ''
         if self.backend != 'noctalia' or not shutil.which('noctalia'):
             return False, 'Live preview needs a backend with readable current wallpapers; Enter still applies.'
+        def query(output):
+            reply = subprocess.run(['timeout', '5', 'noctalia', 'msg', 'wallpaper-get', output],
+                                   capture_output=True, text=True, check=True, timeout=6)
+            path = Path(reply.stdout.strip()).expanduser()
+            if not path.is_absolute() or not path.is_file():
+                raise ValueError(f'Current wallpaper for {output} is not a readable file.')
+            return output, str(path.resolve())
+
         try:
-            for output in result['layout']:
-                reply = subprocess.run(['noctalia', 'msg', 'wallpaper-get', output],
-                                       capture_output=True, text=True, check=True, timeout=5)
-                path = Path(reply.stdout.strip()).expanduser()
-                if not path.is_absolute() or not path.is_file():
-                    raise ValueError(f'Current wallpaper for {output} is not a readable file.')
-                self.original[output] = str(path.resolve())
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                self.original = dict(pool.map(query, result['layout']))
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             self.original = {}
             return False, f'Live preview unavailable: {error} Enter still applies.'
@@ -231,6 +287,7 @@ def run_session():
         signal.signal(signal.SIGINT, stop)
         try:
             result = listing()
+            send('catalog', **result)
             live, reason = session.capture(result)
             if live:
                 result['current'] = next((s['name'] for s in result['sets'] if

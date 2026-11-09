@@ -78,6 +78,26 @@ class SwitcherFixture(unittest.TestCase):
 
 
 class SwitcherTests(SwitcherFixture):
+    def test_library_cache_invalidates_headers_metadata_and_deleted_files(self):
+        self.make_set('cached')
+        self.assertEqual(len(self.listing()['sets']), 1)
+        cache = self.base / 'cache' / 'hunu-test' / 'switcher-library.json'
+        before = cache.stat().st_mtime_ns
+        self.assertEqual(len(self.listing()['sets']), 1)
+        self.assertEqual(cache.stat().st_mtime_ns, before, 'Unchanged library should reuse index')
+        png(self.output / 'cached_a.png', 16, 8)
+        self.assertEqual(self.listing()['sets'], [])
+        png(self.output / 'cached_a.png', 12, 8)
+        self.assertEqual(len(self.listing()['sets']), 1)
+        manifest = self.output / 'cached.hunu.json'
+        manifest.write_text('{}')
+        self.assertEqual(self.listing()['sets'], [])
+        self.make_set('cached')
+        self.assertEqual(len(self.listing()['sets']), 1)
+        (self.output / 'cached_a.png').unlink()
+        self.assertEqual(self.listing()['sets'], [])
+
+
     def test_hides_two_monitor_sets_for_three_monitor_layout(self):
         self.make_set('two', 2)
         self.make_set('three')

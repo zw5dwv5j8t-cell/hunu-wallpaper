@@ -29,6 +29,8 @@ PanelWindow {
     property bool showActionButtons: true
     property int previewDelayMs: 400
     property bool initialized: false
+    property bool snapshotReady: false
+    property bool hasNavigated: false
     property bool liveEnabled: false
     property string liveReason: ""
     property string intent: ""
@@ -43,6 +45,7 @@ PanelWindow {
     }
     function move(step) {
         if (!busy && sets.length) {
+            hasNavigated = true
             selectedIndex = (selectedIndex + step + sets.length) % sets.length
         }
     }
@@ -93,7 +96,8 @@ PanelWindow {
         confirmWhenVisible = false
         if (intent === "commit")
             return
-        if (!initialized || !sessionProcess.running) {
+        if (!initialized || !snapshotReady || !sessionProcess.running) {
+            normalExit = true
             Qt.quit()
             return
         }
@@ -106,13 +110,28 @@ PanelWindow {
         let result
         try { result = JSON.parse(line) }
         catch (error) { errorText = "Could not read preview session response."; return }
-        if (result.event === "ready") {
+        if (result.event === "ready" && initialized) {
+            snapshotReady = true
+            liveEnabled = result.liveEnabled
+            liveReason = result.liveReason
+            previewedName = result.current
+            if (!hasNavigated && intent === "" && !confirmWhenVisible) {
+                const index = sets.findIndex(function(s) { return s.name === result.current })
+                selectedIndex = Math.max(0, index)
+                Qt.callLater(function() { carousel.showRequested() })
+            } else if (hasNavigated && intent === "") {
+                schedulePreview()
+            }
+            return
+        }
+        if (result.event === "catalog" || result.event === "ready") {
+            snapshotReady = result.event === "ready"
             sets = result.sets
             monitorLayout = result.layout
             hiddenCount = result.hidden
             backend = result.backend
-            liveEnabled = result.liveEnabled
-            liveReason = result.liveReason
+            liveEnabled = snapshotReady && result.liveEnabled === true
+            liveReason = result.liveReason || ""
             const preferences = result.switcherSettings || ({})
             verticalPosition = preferences.position || "center"
             previewDelayMs = preferences.delayMs || 400

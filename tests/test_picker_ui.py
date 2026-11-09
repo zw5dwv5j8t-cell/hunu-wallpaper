@@ -87,8 +87,14 @@ class PickerInteractionTests(unittest.TestCase):
             image_url = (base / 'preview.png').as_uri()
             sets = [dict(name=n, title=n, previewUrl=image_url, fallbackPreviewUrl=image_url, previewIsSource=True)
                     for n in ['First', 'Second', 'Third']]
-            receive(dict(event='ready', sets=sets, layout={}, hidden=0, backend='noctalia', liveEnabled=True,
+            receive(dict(event='catalog', sets=sets, layout={}, hidden=0, backend='noctalia', liveEnabled=True,
                          liveReason='', focusedOutput='', current='First'))
+            self.assertTrue(root.property('initialized'))
+            self.assertFalse(root.property('liveEnabled'))
+            js.property('move').callWithInstance(js, [QJSValue(1)])
+            receive(dict(event='ready', current='First', liveEnabled=True, liveReason=''))
+            self.assertEqual(root.property('selectedIndex'), 1, 'Snapshot must preserve early navigation')
+            js.property('move').callWithInstance(js, [QJSValue(-1.0)])
             root.requestActivate()
             QTest.qWait(100)
             def find_visual(item, name):

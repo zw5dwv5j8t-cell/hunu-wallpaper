@@ -8,6 +8,14 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.1
+
+- Show the switcher before the wallpaper rollback snapshot finishes. Live desktop
+  previews wait until restoration is safe; Enter and Escape keep working.
+- Query current Noctalia wallpapers concurrently, reuse loaded monitor settings,
+  and cache library metadata and image dimensions until saved files change.
+- Revalidate selected wallpapers before applying them, including cached sets.
+
 ## Changes in v1.16.0
 
 - Refresh the application with a charcoal palette, mint primary actions, clear

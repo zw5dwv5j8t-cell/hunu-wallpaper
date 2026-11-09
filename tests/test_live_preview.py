@@ -1,5 +1,6 @@
 """Test preview transactions against a stateful mock of native Noctalia."""
 import json
+import os
 from pathlib import Path
 import select
 import signal
@@ -54,6 +55,8 @@ elif args[1]=='wallpaper-set':
             process.stdout.close()
             process.stderr.close()
         self.addCleanup(cleanup)
+        catalog = self.receive(process)
+        self.assertEqual(catalog['event'], 'catalog')
         ready = self.receive(process)
         self.assertEqual(ready['event'], 'ready')
         return process, ready
@@ -61,7 +64,12 @@ elif args[1]=='wallpaper-set':
     def receive(self, process):
         readable, _, _ = select.select([process.stdout], [], [], 10)
         self.assertTrue(readable, 'Preview session did not respond')
-        line = process.stdout.readline()
+        line = b''
+        while not line.endswith(b'\n'):
+            chunk = os.read(process.stdout.fileno(), 1)
+            if not chunk:
+                break
+            line += chunk
         self.assertTrue(line, 'Preview session ended before responding')
         return json.loads(line)
 
@@ -79,6 +87,23 @@ elif args[1]=='wallpaper-set':
 
 
 class LivePreviewTests(LivePreviewFixture):
+    def test_catalog_arrives_before_parallel_snapshot_finishes(self):
+        mock = self.bin / 'noctalia'
+        mock.write_text(mock.read_text().replace("    print(state.get(args[2], ''))", """    import time
+    gate = pathlib.Path(os.environ['TEST_CURRENT'] + '.' + args[2])
+    gate.touch()
+    deadline = time.monotonic() + 4
+    while not all(pathlib.Path(os.environ['TEST_CURRENT'] + '.' + output).exists()
+                  for output in ('DP-1', 'DP-2', 'DP-3')):
+        if time.monotonic() > deadline: sys.exit(1)
+        time.sleep(0.01)
+    print(state.get(args[2], ''))"""))
+        process, ready = self.start_session()
+        self.assertTrue(ready['liveEnabled'], ready['liveReason'])
+        self.assertEqual(self.current(), self.original)
+        self.assertEqual(self.send(process, 'cancel')['event'], 'cancelled')
+
+
     def test_cancel_restores_external_wallpapers_and_does_not_save_preview(self):
         pairs = [value for i in range(1, 4) for value in (f'DP-{i}', str(self.output / f'first_{"abc"[i-1]}.png'))]
         self.assertEqual(self.run_controller('record', *pairs).returncode, 0)
