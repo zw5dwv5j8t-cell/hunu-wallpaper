@@ -76,6 +76,10 @@ else:
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual((install / 'config.conf').read_text(), 'APPLY_BACKEND=noctalia\n# Keep my setup\n')
                 self.assertEqual((install / 'switcher-settings.json').read_text(), preferences)
+                self.assertTrue(os.access(install / 'hunu-switcher-native', os.X_OK))
+                native = subprocess.run([str(install / 'hunu-switcher-native'), 'enabled', str(install)],
+                                        capture_output=True, text=True, check=True)
+                self.assertEqual(native.stdout.strip(), 'false')
             from qt_fixtures import CONTROLS
             for name in ['Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'switcher-settings.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml'] + [name + '.qml' for name in CONTROLS]:
                 self.assertEqual((install / name).read_bytes(), (ROOT / 'src' / name).read_bytes())

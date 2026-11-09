@@ -25,6 +25,9 @@ time.sleep(30 if os.environ.get('TEST_QT_HOLD') else 0.2)
 pathlib.Path(os.environ['TEST_LAUNCH'] + '.connected').write_text(str(time.time() * 1000 - int(os.environ['HUNU_SWITCHER_STARTED_MS'])))
 if os.environ.get('TEST_QT_FAIL'):
     sys.exit(7)
+native = os.environ.get('HUNU_SWITCHER_NATIVE_BIN')
+if native:
+    os.execv(native, [native, 'connect', os.environ['HUNU_SWITCHER_SOCKET']])
 os.execv(sys.executable, [sys.executable, os.environ['TEST_APP'] + '/switcher-transport.py', os.environ['HUNU_SWITCHER_SOCKET']])
 ''')
         quickshell.chmod(0o755)

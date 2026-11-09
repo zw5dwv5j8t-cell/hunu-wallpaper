@@ -5,7 +5,20 @@ if [[ "${HUNU_SWITCHER_TRACE:-0}" == 1 ]]; then
     printf 'HUNU_SWITCHER {"stage":"launcher","elapsedMs":0}\n' >&2
 fi
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-ENABLED="$(python3 "$SCRIPT_DIR/switcher-settings.py" enabled)"
+unset HUNU_SWITCHER_NATIVE_BIN
+if [[ "${HUNU_SWITCHER_NATIVE:-1}" == 1 && -x "$SCRIPT_DIR/hunu-switcher-native" ]]; then
+    export HUNU_SWITCHER_NATIVE_BIN="$SCRIPT_DIR/hunu-switcher-native"
+    ENABLED="$("$HUNU_SWITCHER_NATIVE_BIN" enabled "$SCRIPT_DIR")"
+else
+    ENABLED="$(python3 "$SCRIPT_DIR/switcher-settings.py" enabled)"
+fi
+if [[ "${HUNU_SWITCHER_TRACE:-0}" == 1 ]]; then
+    if [[ -n "${HUNU_SWITCHER_NATIVE_BIN:-}" ]]; then
+        printf 'HUNU_SWITCHER {"stage":"startup-helper","implementation":"rust"}\n' >&2
+    else
+        printf 'HUNU_SWITCHER {"stage":"startup-helper","implementation":"python"}\n' >&2
+    fi
+fi
 [[ "$ENABLED" == true ]] || exit 0
 case "${1:-show}" in
     next|previous)

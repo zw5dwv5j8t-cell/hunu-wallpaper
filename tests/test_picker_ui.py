@@ -91,6 +91,11 @@ class PickerInteractionTests(unittest.TestCase):
                 self.assertFalse(result.isError(), result.toString())
                 self.assertEqual(result.toVariant()[1], str(base / expected))
 
+            native_command = js.property('controllerCommand').callWithInstance(js, [
+                QJSValue('1'), QJSValue('/tmp/private/session.sock'), QJSValue('/tmp/hunu-switcher-native')])
+            self.assertEqual(native_command.toVariant(),
+                             ['/tmp/hunu-switcher-native', 'connect', '/tmp/private/session.sock'])
+
             def receive(payload):
                 result = js.property('receive').callWithInstance(js, [QJSValue(json.dumps(payload))])
                 self.assertFalse(result.isError(), result.toString())

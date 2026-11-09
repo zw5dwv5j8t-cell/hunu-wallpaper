@@ -8,6 +8,22 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.17.0
+
+- Build a native Rust startup helper during installation. It replaces the Python
+  settings check before Qt launches and the Python socket bridge afterward.
+  The transaction controller, strict layout revalidation, thumbnail builder,
+  and Apply/rollback logic remain in Python.
+- Use the native helper automatically after installation. Set
+  `HUNU_SWITCHER_NATIVE=0` to compare against Python startup helpers; parallel
+  startup remains the default in both modes. Trace output identifies the helper.
+- Require Rust/Cargo 1.85+ and a C linker at install time. The installer runs an
+  optimized build with the committed Cargo lockfile before changing installed
+  files. The first build downloads the locked crates; later builds reuse them.
+- Preserve the existing settings format and disabled-switcher behavior. Cover
+  native transport cleanup on commit, cancel, disconnect, startup interruption,
+  launcher termination, and Qt startup failure.
+
 ## Changes in v1.16.9
 
 - Make parallel controller/Qt startup the default for `switcher.sh`. Existing
@@ -359,6 +375,16 @@ Required:
 - `flock`
 - `sha256sum`
 - `timeout`
+
+Build-time requirements:
+
+- Rust 1.85+ and Cargo (install through your distribution or rustup).
+- A C compiler/linker (`cc`, commonly provided by GCC or Clang).
+
+`install.sh` builds `native/` in release mode and installs `hunu-switcher-native`
+with the QML files. Cargo is only needed for installation/building; Python
+remains a runtime dependency for the transaction controller and other tools.
+For development builds, run `cargo build --locked --release --manifest-path native/Cargo.toml`.
 
 Optional:
 

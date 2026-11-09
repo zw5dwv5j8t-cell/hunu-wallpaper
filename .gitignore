@@ -19,3 +19,7 @@ backups/
 /src/file-dialog.ini.lock
 
 /config/switcher-settings.json
+
+# Rust build outputs and optional development helper
+/native/target/
+/src/hunu-switcher-native

@@ -63,7 +63,7 @@ printf '============================================\n\n'
 
 missing=()
 
-for cmd in hyprctl quickshell magick jq bash awk flock sha256sum timeout python3; do
+for cmd in hyprctl quickshell magick jq bash awk flock sha256sum timeout python3 cargo cc; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
         missing+=("$cmd")
     fi
@@ -87,6 +87,9 @@ fi
 # ---------------------------------------------------------------------------
 
 required_files=(
+    "native/Cargo.toml"
+    "native/Cargo.lock"
+    "native/src/main.rs"
     "src/Switcher.qml"
     "src/switcher.sh"
     "src/switcher-controller.py"
@@ -150,6 +153,11 @@ for file in "${required_files[@]}"; do
     [[ -f "$REPO_DIR/$file" ]] || \
         die "Repository file is missing: $file"
 done
+
+# Build before touching the installed application; use the committed lockfile.
+printf 'Building native switcher startup helper…\n'
+cargo build --locked --release --manifest-path "$REPO_DIR/native/Cargo.toml" \
+    --target-dir "$REPO_DIR/native/target"
 
 # ---------------------------------------------------------------------------
 # Optional Serpantinum integration
@@ -260,6 +268,8 @@ app_files=(
 for file in "${app_files[@]}"; do
     cp "$REPO_DIR/src/$file" "$CONFIG_DIR/$file"
 done
+
+install -m 755 "$REPO_DIR/native/target/release/hunu-switcher-native" "$CONFIG_DIR/hunu-switcher-native"
 
 chmod +x \
     "$CONFIG_DIR/launch.sh" \
