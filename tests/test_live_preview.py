@@ -5,6 +5,8 @@ from pathlib import Path
 import select
 import signal
 import subprocess
+import time
+import hashlib
 
 from test_switcher import SwitcherFixture, png
 
@@ -87,6 +89,107 @@ elif args[1]=='wallpaper-set':
 
 
 class LivePreviewTests(LivePreviewFixture):
+    def test_thumbnail_warmup_reused_and_invalidated_without_changing_originals(self):
+        preview = self.output / 'first.preview.jpg'
+        subprocess.run(['magick', '-size', '1600x900', 'gradient:blue-red', str(preview)], check=True)
+        manifest = self.output / 'first.hunu.json'
+        metadata = json.loads(manifest.read_text())
+        metadata['preview'] = preview.name
+        manifest.write_text(json.dumps(metadata))
+        original_hash = hashlib.sha256(preview.read_bytes()).hexdigest()
+        process, ready = self.start_session()
+        first = next(item for item in ready['sets'] if item['name'] == 'first')
+        self.assertEqual(first['previewUrl'], preview.as_uri(), 'First use must not wait for thumbnail generation')
+        folder = self.base / 'cache' / 'hunu-test' / 'switcher-thumbnails'
+        self.assertFalse(folder.exists(), 'Conversion must wait until the picker has appeared')
+        process.stdin.write('{"action":"warm-cache"}\n')
+        process.stdin.flush()
+        deadline = time.monotonic() + 5
+        while not list(folder.glob('*.jpg')) and time.monotonic() < deadline:
+            time.sleep(0.02)
+        thumbnails = list(folder.glob('*.jpg'))
+        self.assertEqual(len(thumbnails), 1)
+        thumbnail = thumbnails[0]
+        width, height = map(int, subprocess.check_output(['magick', 'identify', '-format', '%w %h', str(thumbnail)], text=True).split())
+        self.assertLessEqual(width, 1000)
+        self.assertLessEqual(height, 700)
+        self.assertEqual(hashlib.sha256(preview.read_bytes()).hexdigest(), original_hash)
+        self.assertEqual(self.current(), self.original)
+        self.assertEqual(self.send(process, 'cancel')['event'], 'cancelled')
+        process.wait(timeout=3)
+        process, ready = self.start_session()
+        first = next(item for item in ready['sets'] if item['name'] == 'first')
+        self.assertEqual(first['previewUrl'], thumbnail.as_uri())
+        self.assertEqual(first['previewSize'], [1600, 900], 'Keep original aspect ratio when resizing')
+        self.send(process, 'cancel')
+        process.wait(timeout=3)
+        subprocess.run(['magick', '-size', '1800x900', 'xc:green', str(preview)], check=True)
+        process, ready = self.start_session()
+        first = next(item for item in ready['sets'] if item['name'] == 'first')
+        self.assertEqual(first['previewUrl'], preview.as_uri(), 'Changed source must not reuse stale pixels')
+        self.send(process, 'cancel')
+
+    def test_large_monitor_crop_thumbnail_never_replaces_applied_wallpaper(self):
+        self.make_set('large-crop', size=(1600, 900))
+        monitors = json.loads(self.monitors.read_text())
+        for monitor in monitors:
+            monitor.update(width=1600, height=900)
+        self.monitors.write_text(json.dumps(monitors))
+        original_paths = [self.output / f'large-crop_{suffix}.png' for suffix in 'abc']
+        original_hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in original_paths]
+        process, ready = self.start_session()
+        self.assertEqual(len(ready['sets']), 1)
+        self.assertFalse(ready['sets'][0]['previewIsSource'])
+        process.stdin.write('{"action":"warm-cache"}\n')
+        process.stdin.flush()
+        folder = self.base / 'cache' / 'hunu-test' / 'switcher-thumbnails'
+        deadline = time.monotonic() + 5
+        while not list(folder.glob('*.jpg')) and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertEqual(len(list(folder.glob('*.jpg'))), 1)
+        self.send(process, 'cancel')
+        process.wait(timeout=3)
+        process, ready = self.start_session()
+        self.assertIn('switcher-thumbnails', ready['sets'][0]['previewUrl'])
+        self.assertEqual(self.send(process, 'commit', 'large-crop')['event'], 'committed')
+        process.wait(timeout=3)
+        self.assertEqual(self.current(), {f'DP-{i + 1}': str(path) for i, path in enumerate(original_paths)})
+        self.assertEqual([hashlib.sha256(path.read_bytes()).hexdigest() for path in original_paths], original_hashes)
+
+
+    def test_closing_picker_stops_active_thumbnail_conversion(self):
+        preview = self.output / 'first.preview.jpg'
+        subprocess.run(['magick', '-size', '1600x900', 'xc:blue', str(preview)], check=True)
+        manifest = self.output / 'first.hunu.json'
+        metadata = json.loads(manifest.read_text())
+        metadata['preview'] = preview.name
+        manifest.write_text(json.dumps(metadata))
+        marker = self.base / 'thumbnail-worker.pid'
+        self.env['TEST_THUMB_PID'] = str(marker)
+        converter = self.bin / 'magick'
+        converter.write_text("""#!/usr/bin/env python3
+import os, pathlib, time
+pathlib.Path(os.environ['TEST_THUMB_PID']).write_text(str(os.getpid()))
+time.sleep(30)
+""")
+        converter.chmod(0o755)
+        process, _ = self.start_session()
+        process.stdin.write('{"action":"warm-cache"}\n')
+        process.stdin.flush()
+        deadline = time.monotonic() + 5
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertTrue(marker.exists())
+        pid = int(marker.read_text())
+        self.assertEqual(self.send(process, 'cancel')['event'], 'cancelled')
+        process.wait(timeout=3)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+        folder = self.base / 'cache' / 'hunu-test' / 'switcher-thumbnails'
+        self.assertEqual(list(folder.iterdir()), [], 'Cancelled jobs must clean up partial files')
+        self.assertEqual(self.current(), self.original)
+
+
     def test_catalog_arrives_before_parallel_snapshot_finishes(self):
         mock = self.bin / 'noctalia'
         mock.write_text(mock.read_text().replace("    print(state.get(args[2], ''))", """    import time

@@ -328,6 +328,8 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertIs(find_visual(root.contentItem(), 'currentPreview'), following)
             self.assertEqual((next_frame.width(), next_frame.height()), old_frame_size)
             self.assertEqual(reloads, [], 'Promoting a prepared side preview must not decode again')
+            self.assertEqual(writes.count(dict(action='warm-cache')), 1)
+            writes[:] = [item for item in writes if item['action'] != 'warm-cache']
             self.assertEqual(writes, [dict(action='preview', name='Second')])
             # Finishing an old request must not bypass the quiet period for a
             # newer selection. Rapid choices replace each other, not queue up.

@@ -8,6 +8,21 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.5
+
+- Reuse persistent switcher thumbnails bounded to 1000×700 pixels, including
+  older sets whose only preview is a full-resolution monitor crop. Preserve
+  the original aspect ratio and apply the original full-resolution files.
+- Build missing thumbnails in a low-priority, single-converter background helper
+  after the first view appears. First use continues with the existing previews;
+  subsequent openings use cached JPEGs. Closing the picker stops conversion and
+  removes partial files. There is no persistent background service.
+- Invalidate thumbnails when their source changes, publish completed files
+  atomically, and remove obsolete cache files after a completed warmup.
+- Startup tracing now reports thumbnail hits/misses and
+  `thumbnail-warmup-finished`. Leave the first picker open until warmup finishes,
+  then close and reopen it to compare cached startup timing.
+
 ## Changes in v1.16.4
 
 - Replace per-preview Canvas shadow blurs with lightweight scene-graph shadow

@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import argparse
 import fcntl
 import importlib.util
+import hashlib
 import json
 import os
 import shutil
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import threading
 from urllib.parse import unquote, urlparse
 
 STARTED = time.monotonic()
@@ -209,6 +211,118 @@ def library(directory):
     return items, dimensions
 
 
+def thumbnail_job(item):
+    source = Path(unquote(urlparse(item['previewUrl']).path))
+    stat = source.stat()
+    identity = json.dumps(['v1-1000x700-q88', str(source.resolve()), stat.st_size,
+                           stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino])
+    key = hashlib.sha256(identity.encode()).hexdigest()
+    return source, state_path().parent / 'switcher-thumbnails' / (key + '.jpg'), identity
+
+
+class ThumbnailCache:
+    """Warm previews only after reveal; the helper stops when the picker closes."""
+    def __init__(self, result):
+        self.jobs = []
+        self.stop = threading.Event()
+        self.lock = threading.Lock()
+        self.process = None
+        self.thread = None
+        hits = 0
+        for item in result['sets']:
+            if item['previewSize'][0] <= 1000 and item['previewSize'][1] <= 700:
+                continue
+            try:
+                source, target, identity = thumbnail_job(item)
+                self.jobs.append((source, target, identity))
+                width, height = preview_size(target)
+                if not 0 < width <= 1000 or not 0 < height <= 700:
+                    continue
+                item['previewUrl'] = target.as_uri()
+                hits += 1
+            except (OSError, ValueError):
+                pass
+        trace('thumbnails', hits=hits, missing=len(self.jobs) - hits)
+
+    def start(self):
+        if self.thread is None and self.jobs and shutil.which('magick'):
+            self.thread = threading.Thread(target=self.build, daemon=True)
+            self.thread.start()
+
+    def build(self):
+        for source, target, identity in self.jobs:
+            if self.stop.is_set():
+                break
+            temporary = None
+            try:
+                try:
+                    width, height = preview_size(target)
+                    if 0 < width <= 1000 and 0 < height <= 700:
+                        continue
+                except (OSError, ValueError):
+                    pass
+                target.parent.mkdir(parents=True, exist_ok=True)
+                fd, temporary = tempfile.mkstemp(dir=target.parent, prefix='.thumbnail-', suffix='.tmp')
+                os.close(fd)
+                command = ['magick', '-limit', 'thread', '1', str(source), '-thumbnail', '1000x700>',
+                           '-background', '#181825', '-alpha', 'remove', '-alpha', 'off',
+                           '-strip', '-quality', '88', 'jpeg:' + temporary]
+                if shutil.which('nice'):
+                    command = ['nice', '-n', '10', *command]
+                with self.lock:
+                    if self.stop.is_set():
+                        break
+                    self.process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    process = self.process
+                deadline = time.monotonic() + 15
+                while process.poll() is None and not self.stop.wait(0.02):
+                    if time.monotonic() > deadline:
+                        process.kill()
+                        break
+                if self.stop.is_set() and process.poll() is None:
+                    process.terminate()
+                try:
+                    process.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                if process.returncode == 0 and not self.stop.is_set():
+                    # A source replaced during conversion must not populate the
+                    # key for its old contents. Generated files publish atomically.
+                    probe = dict(previewUrl=source.as_uri())
+                    if thumbnail_job(probe)[2] == identity:
+                        preview_size(temporary)
+                        os.replace(temporary, target)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                pass
+            finally:
+                with self.lock:
+                    self.process = None
+                if temporary and os.path.exists(temporary):
+                    os.unlink(temporary)
+        if not self.stop.is_set():
+            # Keep only thumbnails referenced by this library. Never remove
+            # unrelated files or partially written temporary files.
+            keep = {target.name for _, target, _ in self.jobs}
+            folder = state_path().parent / 'switcher-thumbnails'
+            try:
+                for path in folder.glob('*.jpg'):
+                    if (len(path.stem) == 64 and all(c in '0123456789abcdef' for c in path.stem)
+                            and path.name not in keep):
+                        path.unlink()
+            except OSError:
+                pass
+            trace('thumbnail-warmup-finished')
+
+    def close(self):
+        self.stop.set()
+        with self.lock:
+            if self.process is not None and self.process.poll() is None:
+                self.process.terminate()
+        if self.thread is not None:
+            self.thread.join(timeout=2)
+
+
 def listing():
     config, values = configuration()
     trace('configuration')
@@ -349,10 +463,12 @@ def run_session():
         except BlockingIOError:
             raise ValueError('Another wallpaper Apply or picker session is in progress.')
         session = PreviewSession(lock)
+        thumbnails = None
         signal.signal(signal.SIGTERM, stop)
         signal.signal(signal.SIGINT, stop)
         try:
             result = listing()
+            thumbnails = ThumbnailCache(result)
             trace('catalog', compatibleSets=len(result['sets']))
             send('catalog', **result)
             live, reason = session.capture(result)
@@ -366,6 +482,9 @@ def run_session():
                 try:
                     request = json.loads(line)
                     action = request['action']
+                    if action == 'warm-cache':
+                        thumbnails.start()
+                        continue
                     if action == 'cancel':
                         session.restore()
                         send('cancelled')
@@ -388,8 +507,12 @@ def run_session():
             # Ignore a second TERM while restoring; SIGKILL cannot be recovered.
             signal.signal(signal.SIGTERM, signal.SIG_IGN)
             signal.signal(signal.SIGINT, signal.SIG_IGN)
-            if not session.committed:
-                session.restore()
+            try:
+                if not session.committed:
+                    session.restore()
+            finally:
+                if thumbnails is not None:
+                    thumbnails.close()
 
 
 def main():

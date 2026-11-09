@@ -197,7 +197,11 @@ PanelWindow {
     Timer {
         id: prefetchTimer
         interval: 100
-        onTriggered: picker.prefetchEnabled = true
+        onTriggered: {
+            picker.prefetchEnabled = true
+            if (sessionProcess.running)
+                sessionProcess.write(JSON.stringify({action: "warm-cache"}) + "\n")
+        }
     }
     Timer { id: debounce; interval: picker.previewDelayMs; onTriggered: picker.dispatch() }
     IpcHandler {
