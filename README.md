@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.9
+
+- Make parallel controller/Qt startup the default for `switcher.sh`. Existing
+  hotkeys benefit automatically; no environment flag or resident service is needed.
+- Keep sequential startup available with `HUNU_SWITCHER_PARALLEL=0` for
+  troubleshooting. The separate initial-selection waiting experiment stays off.
+- Verify default-path process cleanup on commit, cancel, disconnection, launcher
+  termination, startup interruption, and failure before connection.
+
 ## Changes in v1.16.8
 
 - Fix normal startup accidentally selecting the parallel socket bridge when

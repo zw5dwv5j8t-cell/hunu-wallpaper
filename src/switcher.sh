@@ -35,7 +35,8 @@ fi
 # a platform-theme plugin (and its portal/settings startup) on every hotkey.
 export QT_QPA_PLATFORMTHEME=""
 export QT_QUICK_CONTROLS_STYLE=Basic
-if [[ "${HUNU_SWITCHER_PARALLEL:-0}" != 1 ]]; then
+export HUNU_SWITCHER_PARALLEL="${HUNU_SWITCHER_PARALLEL:-1}"
+if [[ "$HUNU_SWITCHER_PARALLEL" != 1 ]]; then
     unset HUNU_SWITCHER_SOCKET
     quickshell --no-duplicate -p "$SCRIPT_DIR/Switcher.qml"
     exit $?

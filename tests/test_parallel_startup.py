@@ -12,7 +12,7 @@ from test_live_preview import LivePreviewFixture
 class ParallelStartupTests(LivePreviewFixture):
     def setUp(self):
         super().setUp()
-        self.env['HUNU_SWITCHER_PARALLEL'] = '1'
+        self.env.pop('HUNU_SWITCHER_PARALLEL', None)
         self.env['HUNU_SWITCHER_TRACE'] = '1'
         self.env['XDG_RUNTIME_DIR'] = str(self.base / 'runtime')
         self.env['TEST_APP'] = str(self.app)
