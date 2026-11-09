@@ -42,8 +42,11 @@ elif args[1]=='wallpaper-set':
         self.make_set('first')
         self.make_set('second')
 
+    def session_command(self):
+        return ['python3', str(self.app / 'switcher-controller.py'), 'session']
+
     def start_session(self):
-        process = subprocess.Popen(['python3', str(self.app / 'switcher-controller.py'), 'session'],
+        process = subprocess.Popen(self.session_command(),
                                    env=self.env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, text=True)
         def cleanup():

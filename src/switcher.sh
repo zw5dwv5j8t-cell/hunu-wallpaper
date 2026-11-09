@@ -35,4 +35,42 @@ fi
 # a platform-theme plugin (and its portal/settings startup) on every hotkey.
 export QT_QPA_PLATFORMTHEME=""
 export QT_QUICK_CONTROLS_STYLE=Basic
-quickshell --no-duplicate -p "$SCRIPT_DIR/Switcher.qml"
+if [[ "${HUNU_SWITCHER_PARALLEL:-0}" != 1 ]]; then
+    quickshell --no-duplicate -p "$SCRIPT_DIR/Switcher.qml"
+    exit $?
+fi
+
+# Private, short socket path; one controller belongs to this picker only.
+mkdir -p -- "${XDG_RUNTIME_DIR:-/tmp}"
+SESSION_DIR="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/hunu-picker.XXXXXX")"
+export HUNU_SWITCHER_SOCKET="$SESSION_DIR/session.sock"
+CONTROLLER_PID=""
+PICKER_PID=""
+cleanup() {
+    if [[ -n "$PICKER_PID" ]]; then
+        kill "$PICKER_PID" 2>/dev/null || true
+        wait "$PICKER_PID" 2>/dev/null || true
+    fi
+    if [[ -n "$CONTROLLER_PID" ]]; then
+        # Closing Qt disconnects the bridge. Let EOF finish rollback naturally;
+        # signalling at the same instant can interrupt its cleanup transition.
+        for attempt in {1..100}; do
+            kill -0 "$CONTROLLER_PID" 2>/dev/null || break
+            sleep 0.02
+        done
+        kill "$CONTROLLER_PID" 2>/dev/null || true
+        wait "$CONTROLLER_PID" 2>/dev/null || true
+    fi
+    if [[ -S "$HUNU_SWITCHER_SOCKET" ]]; then
+        unlink "$HUNU_SWITCHER_SOCKET"
+    fi
+    rmdir "$SESSION_DIR"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+python3 "$SCRIPT_DIR/switcher-controller.py" serve "$HUNU_SWITCHER_SOCKET" &
+CONTROLLER_PID=$!
+quickshell --no-duplicate -p "$SCRIPT_DIR/Switcher.qml" <&0 &
+PICKER_PID=$!
+wait "$PICKER_PID"

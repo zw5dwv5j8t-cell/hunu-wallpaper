@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import signal
+import socket
 from pathlib import Path
 import struct
 import subprocess
@@ -448,9 +449,49 @@ class PreviewSession:
         self.dirty = False
 
 
-def run_session():
+class StartupSocket:
+    """Buffer initial results while Qt starts, then serve one private client."""
+    def __init__(self, path):
+        self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.listener.bind(path)
+        self.listener.listen(1)
+        self.listener.settimeout(15)
+        self.pending = []
+        self.connection = self.reader = self.writer = None
+
+    def send(self, message):
+        if self.writer is None:
+            self.pending.append(message)
+            if message['event'] != 'ready':
+                return
+            self.connection, _ = self.listener.accept()
+            self.listener.close()
+            self.reader = self.connection.makefile('r')
+            self.writer = self.connection.makefile('w')
+            for item in self.pending:
+                self.writer.write(json.dumps(item) + '\n')
+            self.pending.clear()
+        else:
+            self.writer.write(json.dumps(message) + '\n')
+        self.writer.flush()
+
+    def close(self):
+        for resource in (self.reader, self.writer, self.connection, self.listener):
+            if resource is not None:
+                try:
+                    resource.close()
+                except OSError:
+                    pass
+
+
+def run_session(channel=None):
+    trace('controller-started', pid=os.getpid())
     def send(event, **values):
-        print(json.dumps(dict(event=event, **values)), flush=True)
+        message = dict(event=event, **values)
+        if channel is None:
+            print(json.dumps(message), flush=True)
+        else:
+            channel.send(message)
 
     def stop(_signal, _frame):
         raise SessionStopped()
@@ -477,7 +518,7 @@ def run_session():
                 result['current'] = next((s['name'] for s in result['sets'] if
                     {row['output']: str(Path(row['file']).resolve()) for row in s['monitors']} == session.original), '')
             send('ready', **result, liveEnabled=live, liveReason=reason)
-            for line in sys.stdin:
+            for line in (channel.reader if channel is not None else sys.stdin):
                 action = ''
                 try:
                     request = json.loads(line)
@@ -517,11 +558,20 @@ def run_session():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['list', 'apply', 'next', 'previous', 'record', 'session'])
+    parser.add_argument('action', choices=['list', 'apply', 'next', 'previous', 'record', 'session', 'serve'])
     parser.add_argument('arguments', nargs='*')
     args = parser.parse_args()
-    if args.action in ('session', 'apply', 'next', 'previous') and not switcher_prefs.load()['enabled']:
+    if args.action in ('session', 'serve', 'apply', 'next', 'previous') and not switcher_prefs.load()['enabled']:
         raise ValueError('Wallpaper switcher is disabled in Hunu Settings.')
+    if args.action == 'serve':
+        if len(args.arguments) != 1:
+            raise ValueError('Expected a private startup socket path.')
+        channel = StartupSocket(args.arguments[0])
+        try:
+            run_session(channel)
+        finally:
+            channel.close()
+        return
     if args.action == 'session':
         run_session()
         return

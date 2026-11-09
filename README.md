@@ -8,6 +8,25 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.7
+
+- Add an opt-in parallel startup trial: `HUNU_SWITCHER_PARALLEL=1` starts the
+  controller alongside Qt. It prepares the library and rollback snapshot while
+  Qt initializes, then delivers buffered results over a private local socket.
+- Keep normal startup as the default. Compare with the picker closed between
+  runs, without enabling the separate initial-selection experiment:
+
+  ```bash
+  HUNU_SWITCHER_TRACE=1 ~/.config/hunu-wallpaper/switcher.sh
+  HUNU_SWITCHER_PARALLEL=1 HUNU_SWITCHER_TRACE=1 ~/.config/hunu-wallpaper/switcher.sh
+  ```
+
+- The launcher owns both processes and cleans up its private socket on exit.
+  The short-lived transport exits with the picker; disconnecting restores any
+  uncommitted wallpaper. No background service is installed.
+- Include lifecycle tests for commit, cancel, transport disconnect, launcher
+  termination, startup interruption, and Qt failure before connection.
+
 ## Changes in v1.16.6
 
 - Add an opt-in startup experiment: set `HUNU_SWITCHER_WAIT_INITIAL=1` to wait up

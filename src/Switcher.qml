@@ -206,7 +206,10 @@ PanelWindow {
     onClosed: cancel()
     Component.onCompleted: {
         trace("qml-ready")
-        sessionProcess.command = ["python3", helper("switcher-controller.py"), "session"]
+        const startupSocket = Quickshell.env("HUNU_SWITCHER_SOCKET")
+        sessionProcess.command = startupSocket !== ""
+            ? ["python3", helper("switcher-transport.py"), startupSocket]
+            : ["python3", helper("switcher-controller.py"), "session"]
         sessionProcess.running = true
     }
     // Allow fast current-wallpaper queries to choose the initial triplet.
