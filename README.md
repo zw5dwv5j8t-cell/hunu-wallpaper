@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.16.8
+
+- Fix normal startup accidentally selecting the parallel socket bridge when
+  Quickshell returns `undefined` for an unset environment variable.
+- Require an explicit parallel-startup flag and a nonempty absolute socket
+  path before using the bridge. Clear inherited socket values on normal launch.
+- Cover actual unset-variable behavior, invalid and stale socket values, and
+  explicit parallel selection in native QML regression checks.
+
 ## Changes in v1.16.7
 
 - Add an opt-in parallel startup trial: `HUNU_SWITCHER_PARALLEL=1` starts the

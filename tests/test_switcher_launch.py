@@ -27,12 +27,14 @@ else:
     assert sys.argv[1:3] == ['--no-duplicate', '-p']
     assert os.environ['QT_QPA_PLATFORMTHEME'] == ''
     assert os.environ['QT_QUICK_CONTROLS_STYLE'] == 'Basic'
+    assert 'HUNU_SWITCHER_SOCKET' not in os.environ
     (base / 'started').touch()
     while not (base / 'stop').exists(): time.sleep(0.02)
 ''')
             client.chmod(0o755)
             env = dict(os.environ, PATH=f'{base}:{os.environ["PATH"]}',
-                       XDG_RUNTIME_DIR=str(base / 'runtime'), TEST_BASE=str(base))
+                       XDG_RUNTIME_DIR=str(base / 'runtime'), TEST_BASE=str(base),
+                       HUNU_SWITCHER_SOCKET='/tmp/stale-picker.sock', HUNU_SWITCHER_PARALLEL='0')
             first = subprocess.Popen(['bash', str(base / 'switcher.sh')], env=env)
             try:
                 deadline = time.monotonic() + 5

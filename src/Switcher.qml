@@ -203,13 +203,19 @@ PanelWindow {
         else if (queuedName !== "" && !debounce.running)
             dispatch()
     }
+    function controllerCommand(parallel, startupSocket) {
+        // Quickshell returns undefined for an unset variable, not an empty string.
+        const useSocket = parallel === "1" && typeof startupSocket === "string"
+            && startupSocket.length > 1 && startupSocket.startsWith("/")
+        return useSocket
+            ? ["python3", helper("switcher-transport.py"), startupSocket]
+            : ["python3", helper("switcher-controller.py"), "session"]
+    }
     onClosed: cancel()
     Component.onCompleted: {
         trace("qml-ready")
-        const startupSocket = Quickshell.env("HUNU_SWITCHER_SOCKET")
-        sessionProcess.command = startupSocket !== ""
-            ? ["python3", helper("switcher-transport.py"), startupSocket]
-            : ["python3", helper("switcher-controller.py"), "session"]
+        sessionProcess.command = controllerCommand(Quickshell.env("HUNU_SWITCHER_PARALLEL"),
+                                                    Quickshell.env("HUNU_SWITCHER_SOCKET"))
         sessionProcess.running = true
     }
     // Allow fast current-wallpaper queries to choose the initial triplet.

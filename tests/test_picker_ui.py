@@ -23,6 +23,7 @@ class PickerInteractionTests(unittest.TestCase):
         from PySide6.QtQml import QQmlApplicationEngine, QJSValue, qmlRegisterType
         from PySide6.QtTest import QTest
         writes = []
+        commands = []
 
         class Process(QObject):
             exited = Signal(int)
@@ -32,7 +33,7 @@ class PickerInteractionTests(unittest.TestCase):
                 super().__init__(parent)
                 self._out, self._err, self._cmd = None, None, []
 
-            command = Property('QVariantList', lambda s: s._cmd, lambda s, v: setattr(s, '_cmd', v))
+            command = Property('QVariantList', lambda s: s._cmd, lambda s, v: (setattr(s, '_cmd', v), commands.append(v)))
             running = Property(bool, lambda s: True, lambda s, v: None, notify=runningChanged)
             stdinEnabled = Property(bool, lambda s: True, lambda s, v: None)
             stdout = Property(QObject, lambda s: s._out, lambda s, v: setattr(s, '_out', v))
@@ -63,7 +64,7 @@ class PickerInteractionTests(unittest.TestCase):
             module = base / 'Quickshell'
             module.mkdir()
             (module / 'qmldir').write_text('module Quickshell\nFloatingWindow 1.0 FloatingWindow.qml\nsingleton Quickshell 1.0 Quickshell.qml\n')
-            (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: []; function env(name) { return name === "HUNU_SWITCHER_WAIT_INITIAL" ? "1" : "" } }')
+            (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: []; function env(name) { return name === "HUNU_SWITCHER_WAIT_INITIAL" ? "1" : undefined } }')
             (module / 'FloatingWindow.qml').write_text('import QtQuick\nimport QtQuick.Window\nWindow { width: 1280; height: 900; signal closed() }')
             source = (ROOT / 'src' / 'Switcher.qml').read_text()
             source = source.replace('import Quickshell.Wayland', '').replace('PanelWindow {', 'FloatingWindow {')
@@ -76,6 +77,19 @@ class PickerInteractionTests(unittest.TestCase):
             self.assertTrue(engine.rootObjects())
             root = engine.rootObjects()[0]
             js = engine.newQObject(root)
+            self.assertEqual(commands[-1][-2:], [str(base / 'switcher-controller.py'), 'session'],
+                             'Unset Quickshell environment variables must select the normal controller')
+            for parallel, socket_path, expected in [
+                (QJSValue(), QJSValue(), 'switcher-controller.py'),
+                (QJSValue('1'), QJSValue(), 'switcher-controller.py'),
+                (QJSValue('1'), QJSValue(''), 'switcher-controller.py'),
+                (QJSValue('1'), QJSValue('undefined'), 'switcher-controller.py'),
+                (QJSValue('0'), QJSValue('/tmp/stale.sock'), 'switcher-controller.py'),
+                (QJSValue('1'), QJSValue('/tmp/private/session.sock'), 'switcher-transport.py'),
+            ]:
+                result = js.property('controllerCommand').callWithInstance(js, [parallel, socket_path])
+                self.assertFalse(result.isError(), result.toString())
+                self.assertEqual(result.toVariant()[1], str(base / expected))
 
             def receive(payload):
                 result = js.property('receive').callWithInstance(js, [QJSValue(json.dumps(payload))])

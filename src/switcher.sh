@@ -36,6 +36,7 @@ fi
 export QT_QPA_PLATFORMTHEME=""
 export QT_QUICK_CONTROLS_STYLE=Basic
 if [[ "${HUNU_SWITCHER_PARALLEL:-0}" != 1 ]]; then
+    unset HUNU_SWITCHER_SOCKET
     quickshell --no-duplicate -p "$SCRIPT_DIR/Switcher.qml"
     exit $?
 fi
