@@ -91,6 +91,7 @@ required_files=(
     "native/Cargo.lock"
     "native/src/main.rs"
     "src/Switcher.qml"
+    "src/NativeSwitcherImage.qml"
     "src/switcher.sh"
     "src/switcher-controller.py"
     "src/switcher-transport.py"
@@ -207,6 +208,7 @@ fi
 
 app_files=(
     "Switcher.qml"
+    "NativeSwitcherImage.qml"
     "switcher.sh"
     "switcher-controller.py"
     "switcher-transport.py"

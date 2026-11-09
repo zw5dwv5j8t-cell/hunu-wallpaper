@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
@@ -30,13 +31,18 @@ PanelWindow {
     property int previewDelayMs: 400
     readonly property double startupStarted: Date.now()
     readonly property bool traceEnabled: Quickshell.env("HUNU_SWITCHER_TRACE") === "1"
-    function trace(stage) {
+    function trace(stage, details) {
         if (traceEnabled) {
             const launched = Number(Quickshell.env("HUNU_SWITCHER_STARTED_MS")) || startupStarted
-            console.info("HUNU_SWITCHER " + JSON.stringify({stage: stage,
-                elapsedMs: Date.now() - launched, qmlElapsedMs: Date.now() - startupStarted}))
+            const event = details || ({})
+            event.stage = stage
+            event.elapsedMs = Date.now() - launched
+            event.qmlElapsedMs = Date.now() - startupStarted
+            console.info("HUNU_SWITCHER " + JSON.stringify(event))
         }
     }
+    readonly property bool nativePreviews: Quickshell.env("HUNU_SWITCHER_NATIVE_PREVIEWS") === "1"
+    property bool nativePreviewsUnavailable: false
     property bool decodingStarted: false
     readonly property bool waitForInitialSelection: Quickshell.env("HUNU_SWITCHER_WAIT_INITIAL") === "1"
     function beginDecoding() {
@@ -215,7 +221,7 @@ PanelWindow {
     }
     onClosed: cancel()
     Component.onCompleted: {
-        trace("qml-ready")
+        trace("qml-ready", {previewRenderer: nativePreviews ? "native-trial" : "canvas"})
         sessionProcess.command = controllerCommand(Quickshell.env("HUNU_SWITCHER_PARALLEL"),
                                                     Quickshell.env("HUNU_SWITCHER_SOCKET"),
                                                     Quickshell.env("HUNU_SWITCHER_NATIVE_BIN"))
@@ -392,12 +398,13 @@ PanelWindow {
                                 // Identical decode size in every position: moving
                                 // from side to center never reloads the asset.
                                 sourceSize: Qt.size(1000, 700)
+                                traceIndex: slot.index
                                 highlighted: true
                                 Accessible.name: wallpaperSet ? wallpaperSet.title : "Wallpaper preview"
                                 Accessible.description: wallpaperSet && !wallpaperSet.previewIsSource
                                     ? "Monitor crop preview" : "Full source preview"
                                 onFrameReadyChanged: if (frameReady && !picker.firstFrameReady)
-                                    picker.trace("preview-painted-" + slot.index)
+                                    picker.trace((nativeRenderer ? "preview-prepared-native-" : "preview-painted-") + slot.index)
                                 onPreparedChanged: if (prepared) {
                                     if (!picker.firstFrameReady)
                                         picker.trace("preview-ready-" + slot.index)
@@ -495,13 +502,19 @@ PanelWindow {
         property bool highlighted: false
         property bool shadowEnabled: true
         property string failedUrl: ""
-        readonly property real aspectRatio: paintedImage.displayedRatio
+        property int traceIndex: -1
+        readonly property bool nativeRenderer: picker.nativePreviews && !picker.nativePreviewsUnavailable
+            && GraphicsInfo.api !== GraphicsInfo.Software && GraphicsInfo.api !== GraphicsInfo.Unknown
+        readonly property var renderer: nativeRenderer ? nativeImageLoader.item : paintedImage
+        readonly property real aspectRatio: renderer ? renderer.displayedRatio : 1
         readonly property real paintedWidth: imageFrame.width
         readonly property real paintedHeight: imageFrame.height
-        readonly property bool prepared: paintedImage.status === Image.Error
-            || (paintedImage.status === Image.Ready && paintedImage.displayedUrl.toString() === paintedImage.imageUrl.toString())
-        readonly property bool frameReady: paintedImage.status === Image.Error
-            || (prepared && paintedImage.renderedUrl.toString() === paintedImage.imageUrl.toString())
+        readonly property bool prepared: nativeRenderer ? !!renderer && renderer.prepared
+            : paintedImage.status === Image.Error
+                || (paintedImage.status === Image.Ready && paintedImage.displayedUrl.toString() === paintedImage.imageUrl.toString())
+        readonly property bool frameReady: nativeRenderer ? !!renderer && renderer.frameReady
+            : paintedImage.status === Image.Error
+                || (prepared && paintedImage.renderedUrl.toString() === paintedImage.imageUrl.toString())
         onFrameReadyChanged: if (frameReady) Qt.callLater(carousel.showRequested)
         onHighlightedChanged: paintedImage.requestPaint()
 
@@ -511,7 +524,7 @@ PanelWindow {
             id: imageFrame
             objectName: "roundedImageFrame"
             anchors.centerIn: parent
-            width: paintedImage.displayedUrl.toString() !== ""
+            width: preview.renderer && preview.renderer.displayedUrl.toString() !== ""
                 ? Math.min(preview.width, preview.height * preview.aspectRatio) : 0
             height: width / Math.max(0.001, preview.aspectRatio)
             readonly property real cornerRadius: Math.min(22, width / 10, height / 10)
@@ -531,15 +544,43 @@ PanelWindow {
                     visible: imageFrame.width > 0
                 }
             }
+            Loader {
+                id: nativeImageLoader
+                anchors.fill: parent
+                active: preview.nativeRenderer
+                source: active ? "NativeSwitcherImage.qml" : ""
+                onStatusChanged: if (status === Loader.Error) {
+                    picker.nativePreviewsUnavailable = true
+                    picker.trace("native-renderer-unavailable-using-canvas")
+                }
+                onLoaded: {
+                    item.sourceGeometry = Qt.binding(function() { return preview.sourceGeometry })
+                    item.fallbackGeometry = Qt.binding(function() { return preview.fallbackGeometry })
+                    item.sourceSize = Qt.binding(function() { return preview.sourceSize })
+                    item.cornerRadius = Qt.binding(function() { return imageFrame.cornerRadius })
+                    item.highlighted = Qt.binding(function() { return preview.highlighted })
+                    item.fallbackSource = Qt.binding(function() { return preview.fallbackSource })
+                    item.source = Qt.binding(function() { return preview.source })
+                    picker.trace("native-renderer-created")
+                }
+            }
+            Connections {
+                target: nativeImageLoader.item
+                function onTraceEvent(stage) { picker.trace("native-" + stage, {index: preview.traceIndex}) }
+            }
             Canvas {
                 id: paintedImage
+                visible: !preview.nativeRenderer
                 objectName: "roundedImageCanvas"
                 readonly property int padding: 24
                 property int status: Image.Null
-                property url imageUrl: preview.failedUrl === preview.source.toString() ? preview.fallbackSource : preview.source
+                property url imageUrl: preview.nativeRenderer ? ""
+                    : preview.failedUrl === preview.source.toString() ? preview.fallbackSource : preview.source
                 readonly property var geometry: preview.failedUrl === preview.source.toString() ? preview.fallbackGeometry : preview.sourceGeometry
                 property url loadedUrl: ""
                 property url renderedUrl: ""
+                onAvailableChanged: if (available && !preview.nativeRenderer && !picker.firstFrameReady)
+                    picker.trace("canvas-available", {index: preview.traceIndex, width: width, height: height, pixelRatio: Screen.devicePixelRatio, graphicsApi: GraphicsInfo.api})
                 onPainted: renderedUrl = displayedUrl
                 property url displayedUrl: ""
                 property real displayedRatio: 1
@@ -566,6 +607,8 @@ PanelWindow {
                     }
                     if (!isImageLoaded(imageUrl))
                         return
+                    if (status !== Image.Ready && !picker.firstFrameReady)
+                        picker.trace("canvas-image-load-completed", {index: preview.traceIndex})
                     status = Image.Ready
                     if (displayedUrl.toString() === imageUrl.toString()) {
                         displayedRatio = pendingRatio
@@ -589,6 +632,8 @@ PanelWindow {
                     if (imageUrl.toString() !== "") {
                         status = Image.Loading
                         pendingRatio = Math.max(1, geometry[0]) / Math.max(1, geometry[1])
+                        if (!picker.firstFrameReady)
+                            picker.trace("canvas-image-load-requested", {index: preview.traceIndex, decodeWidth: preview.sourceSize.width, decodeHeight: preview.sourceSize.height})
                         loadImage(imageUrl, preview.sourceSize)
                         requestPaint()
                         if (isImageLoaded(imageUrl) || isImageError(imageUrl))
@@ -601,7 +646,11 @@ PanelWindow {
                     if (isImageLoaded(imageUrl))
                         imageReady()
                 }
-                onImageLoaded: imageReady()
+                onImageLoaded: {
+                    if (!picker.firstFrameReady)
+                        picker.trace("canvas-image-loaded-signal", {index: preview.traceIndex})
+                    imageReady()
+                }
                 // Canvas may report failed loads only through isImageError(),
                 // without imageLoaded. Poll only while a request is pending.
                 Timer {
@@ -618,6 +667,9 @@ PanelWindow {
                     ctx.clearRect(0, 0, width, height)
                     if (!isImageLoaded(displayedUrl) || imageFrame.width <= 0 || imageFrame.height <= 0)
                         return
+                    if (!picker.firstFrameReady && renderedUrl.toString() !== displayedUrl.toString())
+                        picker.trace("canvas-paint-start", {index: preview.traceIndex,
+                            width: width, height: height, pixelRatio: Screen.devicePixelRatio})
                     const w = imageFrame.width
                     const h = imageFrame.height
                     const r = imageFrame.cornerRadius

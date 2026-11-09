@@ -8,6 +8,31 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.17.1
+
+- Trace actual Canvas image-load requests, load-completion callbacks, canvas
+  availability, and paint start, including preview index, graphics API, and
+  device-pixel ratio. These distinguish decoding from shared renderer startup.
+- Add an opt-in native Image renderer using a textured rounded Shape path. It
+  decodes each asset once, retains outgoing pixels, reuses prepared neighbors,
+  and avoids full-size offscreen buffers for the side previews. It uses the same
+  borders/shadows and keyboard, Apply, and Cancel behavior.
+- Keep Canvas as the default: local OpenGL/Mesa comparisons at 1× and 2× scaling
+  showed similar or slightly slower complete rendering with the native path.
+  Earlier ready signals alone did not establish faster on-screen presentation.
+- Compare your GPU with the picker closed between runs:
+
+  ```bash
+  HUNU_SWITCHER_TRACE=1 ~/.config/hunu-wallpaper/switcher.sh
+  HUNU_SWITCHER_NATIVE_PREVIEWS=1 HUNU_SWITCHER_TRACE=1 ~/.config/hunu-wallpaper/switcher.sh
+  ```
+
+  The experiment needs Qt 6.8+ with QtQuick.Shapes. Software rendering or an
+  unavailable native component uses Canvas automatically. Native trace events
+  mark image readiness; `preview-prepared-native-*` does not claim GPU completion.
+- Verify actual image clipping, portrait geometry, delayed-image retention,
+  fallback decoding, atomic cycling, and keyboard controls in OpenGL tests.
+
 ## Changes in v1.17.0
 
 - Build a native Rust startup helper during installation. It replaces the Python

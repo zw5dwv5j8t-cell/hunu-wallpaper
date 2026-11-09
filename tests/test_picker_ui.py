@@ -64,13 +64,17 @@ class PickerInteractionTests(unittest.TestCase):
             module = base / 'Quickshell'
             module.mkdir()
             (module / 'qmldir').write_text('module Quickshell\nFloatingWindow 1.0 FloatingWindow.qml\nsingleton Quickshell 1.0 Quickshell.qml\n')
-            (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: []; function env(name) { return name === "HUNU_SWITCHER_WAIT_INITIAL" ? "1" : undefined } }')
+            (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: []; function env(name) { return name === "HUNU_SWITCHER_WAIT_INITIAL" ? "1" : name === "HUNU_SWITCHER_NATIVE_PREVIEWS" ? "NATIVE_PREVIEW_TEST" : undefined } }')
+            singleton = module / 'Quickshell.qml'
+            singleton.write_text(singleton.read_text().replace('NATIVE_PREVIEW_TEST', os.environ.get('HUNU_QA_NATIVE_PREVIEWS', '0')))
             (module / 'FloatingWindow.qml').write_text('import QtQuick\nimport QtQuick.Window\nWindow { width: 1280; height: 900; signal closed() }')
             source = (ROOT / 'src' / 'Switcher.qml').read_text()
             source = source.replace('import Quickshell.Wayland', '').replace('PanelWindow {', 'FloatingWindow {')
             source = '\n'.join(line for line in source.splitlines() if not any(v in line for v in
                                ['anchors { top:', 'exclusionMode:', 'WlrLayershell.']))
             (base / 'Switcher.qml').write_text(source)
+            if os.environ.get('HUNU_QA_MISSING_NATIVE_PREVIEW') != '1':
+                (base / 'NativeSwitcherImage.qml').write_text((ROOT / 'src/NativeSwitcherImage.qml').read_text())
             engine = QQmlApplicationEngine()
             engine.addImportPath(str(base))
             engine.load(QUrl.fromLocalFile(str(base / 'Switcher.qml')))
@@ -162,6 +166,10 @@ class PickerInteractionTests(unittest.TestCase):
             current = find_visual(root.contentItem(), 'currentPreview')
             self.assertIsNotNone(previous)
             self.assertIsNotNone(following)
+            if os.environ.get('HUNU_QA_EXPECT_NATIVE_PREVIEWS') == '1':
+                self.assertTrue(current.property('nativeRenderer'))
+            if os.environ.get('HUNU_QA_MISSING_NATIVE_PREVIEW') == '1':
+                self.assertFalse(current.property('nativeRenderer'), 'Unavailable renderer must fall back to Canvas')
             self.assertEqual(previous.property('neighborIndex'), 2, 'Previous must wrap at the first set')
             self.assertEqual(following.property('neighborIndex'), 1)
             def visual_width(item):
@@ -179,12 +187,13 @@ class PickerInteractionTests(unittest.TestCase):
             def assert_clipped(expected_color):
                 screenshot = root.grabWindow()
                 origin = frame.mapToScene(QPointF())
-                left, top = round(origin.x()), round(origin.y())
-                right, bottom = round(origin.x() + frame.width()), round(origin.y() + frame.height())
+                pixel_scale = screenshot.width() / root.width()
+                left, top = round(origin.x() * pixel_scale), round(origin.y() * pixel_scale)
+                right, bottom = round((origin.x() + frame.width()) * pixel_scale), round((origin.y() + frame.height()) * pixel_scale)
                 for x, y in [(left + 2, top + 2), (right - 3, top + 2),
                              (left + 2, bottom - 3), (right - 3, bottom - 3)]:
                     self.assertEqual(screenshot.pixelColor(x, y).alpha(), 0, 'Actual image corners must be transparent')
-                center = screenshot.pixelColor(round(origin.x() + frame.width() / 2), round(origin.y() + frame.height() / 2))
+                center = screenshot.pixelColor(round((origin.x() + frame.width() / 2) * pixel_scale), round((origin.y() + frame.height() / 2) * pixel_scale))
                 self.assertEqual(center, expected_color)
 
             from PySide6.QtGui import QColor
@@ -239,11 +248,12 @@ class PickerInteractionTests(unittest.TestCase):
                 side_frame = find_visual(side, 'roundedImageFrame')
                 self.assertGreater(side_frame.width(), 0)
                 middle = side_frame.mapToScene(QPointF(side_frame.width()/2, side_frame.height()/2))
-                pixel = pending_screenshot.pixelColor(round(middle.x()), round(middle.y()))
+                pixel_scale = pending_screenshot.width() / root.width()
+                pixel = pending_screenshot.pixelColor(round(middle.x() * pixel_scale), round(middle.y() * pixel_scale))
                 self.assertGreater(pixel.alpha(), 100, 'Side preview must remain visible while loading')
                 self.assertGreater(pixel.blue(), pixel.green())
             release.set()
-            canvas = find_visual(current, 'roundedImageCanvas')
+            canvas = find_visual(current, 'nativePreviewRenderer') or find_visual(current, 'roundedImageCanvas')
             deadline = time.monotonic() + 3
             while canvas.property('displayedUrl').toString() != delayed_sets[0]['previewUrl'] and time.monotonic() < deadline:
                 QTest.qWait(10)
@@ -358,7 +368,7 @@ class PickerInteractionTests(unittest.TestCase):
             following = find_visual(root.contentItem(), 'nextPreview')
             next_frame = find_visual(following, 'roundedImageFrame')
             old_frame_size = (next_frame.width(), next_frame.height())
-            decoder = find_visual(following, 'roundedImageCanvas')
+            decoder = find_visual(following, 'nativePreviewImage') or find_visual(following, 'roundedImageCanvas')
             reloads = []
             decoder.statusChanged.connect(lambda: reloads.append(decoder.property('status')))
             # The same prepared asset must move from side to center. It must not
@@ -380,8 +390,11 @@ class PickerInteractionTests(unittest.TestCase):
             receive(dict(event='previewed', name='Second'))
             self.assertEqual(len(writes), 1)
             QTest.keyClick(root, Qt.Key_Right)  # First supersedes Third.
-            QTest.qWait(450)
-            self.assertEqual(writes[-1], dict(action='preview', name='First'))
+            deadline = time.monotonic() + 1
+            while writes[-1] != dict(action='preview', name='First') and time.monotonic() < deadline:
+                QTest.qWait(10)
+            self.assertEqual(writes[-1], dict(action='preview', name='First'),
+                             str({key: root.property(key) for key in ['selectedIndex', 'inFlight', 'previewedName', 'queuedName', 'intent', 'errorText']}))
             self.assertEqual(len(writes), 2, 'Intermediate Third must never be sent')
             QTest.keyClick(root, Qt.Key_Right)
             QTest.keyClick(root, Qt.Key_Right)
