@@ -158,6 +158,15 @@ class LivePreviewTests(LivePreviewFixture):
 
 
     def test_closing_picker_stops_active_thumbnail_conversion(self):
+        self.assert_thumbnail_cleanup('cancel')
+
+    def test_gui_disconnect_stops_active_thumbnail_conversion(self):
+        self.assert_thumbnail_cleanup('disconnect')
+
+    def test_termination_stops_active_thumbnail_conversion(self):
+        self.assert_thumbnail_cleanup('terminate')
+
+    def assert_thumbnail_cleanup(self, exit_action):
         preview = self.output / 'first.preview.jpg'
         subprocess.run(['magick', '-size', '1600x900', 'xc:blue', str(preview)], check=True)
         manifest = self.output / 'first.hunu.json'
@@ -181,7 +190,12 @@ time.sleep(30)
             time.sleep(0.02)
         self.assertTrue(marker.exists())
         pid = int(marker.read_text())
-        self.assertEqual(self.send(process, 'cancel')['event'], 'cancelled')
+        if exit_action == 'cancel':
+            self.assertEqual(self.send(process, 'cancel')['event'], 'cancelled')
+        elif exit_action == 'disconnect':
+            process.stdin.close()
+        else:
+            process.send_signal(signal.SIGTERM)
         process.wait(timeout=3)
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
