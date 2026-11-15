@@ -22,6 +22,9 @@ fn enabled(app: &Path) -> Result<bool> {
             return Err("Enable, live preview, and show buttons must be true or false.".into());
         }
     }
+    if object.get("style").is_some_and(|value| !matches!(value.as_str(), Some("carousel" | "grid"))) {
+        return Err("Picker style must be carousel or grid.".into());
+    }
     if object.get("position").is_some_and(|value| !matches!(value.as_str(), Some("top" | "center" | "bottom"))) {
         return Err("Position must be top, center, or bottom.".into());
     }

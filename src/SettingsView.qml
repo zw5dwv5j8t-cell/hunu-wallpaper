@@ -12,6 +12,7 @@ Dialog {
     property string dependencyError: ""
 
     property bool switcherEnabled: true
+    property string switcherStyle: "carousel"
     property string switcherPosition: "center"
     property bool switcherShowButtons: true
     property bool switcherLivePreview: true
@@ -27,6 +28,7 @@ Dialog {
     function readSwitcherValues(text) {
         const values = JSON.parse(text)
         switcherEnabled = values.enabled
+        switcherStyle = values.style || "carousel"
         switcherPosition = values.position
         switcherShowButtons = values.showActionButtons
         switcherLivePreview = values.livePreview
@@ -47,7 +49,7 @@ Dialog {
         switcherError = ""
         switcherMessage = ""
         switcherSave.command = ["python3", switcherHelper(), "save", JSON.stringify({
-            enabled: switcherEnabled, position: switcherPosition,
+            enabled: switcherEnabled, style: switcherStyle, position: switcherPosition,
             livePreview: switcherLivePreview, delayMs: switcherDelayMs, showActionButtons: switcherShowButtons
         })]
         switcherSave.running = true
@@ -346,6 +348,22 @@ Dialog {
                                 checked: dialog.switcherEnabled
                                 enabled: dialog.switcherEditable
                                 onToggled: { dialog.switcherEnabled = checked; dialog.switcherDirty = true }
+                            }
+                        }
+                        HunuSettingsRow {
+                            Layout.fillWidth: true
+                            heading: "Picker style"
+                            detail: "Carousel or a 3×3 wallpaper grid with pages."
+                            HunuSegmented {
+                                objectName: "switcherStyleSetting"
+                                Accessible.name: "Wallpaper picker style"
+                                options: ["Carousel", "Grid"]
+                                enabled: dialog.switcherEditable && dialog.switcherEnabled
+                                currentIndex: dialog.switcherStyle === "grid" ? 1 : 0
+                                onSelected: function(index) {
+                                    dialog.switcherStyle = index === 1 ? "grid" : "carousel"
+                                    dialog.switcherDirty = true
+                                }
                             }
                         }
                         HunuSettingsRow {

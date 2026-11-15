@@ -115,6 +115,11 @@ ApplicationWindow {
             QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
             self.assertEqual(settings.property('switcherPosition'), 'top')
 
+            style = settings.findChild(QObject, 'switcherStyleSetting')
+            self.assertEqual(style.property('currentIndex'), 0, 'Old preferences keep Carousel')
+            point = style.mapToScene(QPointF(style.width()*3/4, style.height()/2)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            self.assertEqual(settings.property('switcherStyle'), 'grid')
             point = enabled.mapToScene(QPointF(15, enabled.height() / 2)).toPoint()
             QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
             self.assertFalse(settings.property('switcherEnabled'))
@@ -124,7 +129,7 @@ ApplicationWindow {
             QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
             saves = [command for command in commands if 'save' in command]
             self.assertTrue(saves)
-            self.assertEqual(json.loads(saves[-1][-1]), dict(values, enabled=False))
+            self.assertEqual(json.loads(saves[-1][-1]), dict(values, enabled=False, style='grid'))
             settings.setProperty('switcherEnabled', True)
             settings.setProperty('switcherLivePreview', True)
             QTest.qWait(20)

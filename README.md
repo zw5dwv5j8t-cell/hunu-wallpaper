@@ -8,6 +8,23 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.18.0
+
+- Add **Settings → Switcher → Picker style** with **Carousel** and **Grid**.
+  Existing installations keep Carousel by default.
+- Grid opens a framed popup showing up to nine compatible saved wallpapers in
+  three rows and three columns, with page buttons and a page counter. A partial
+  last page shows only its available wallpapers.
+- Click a tile to select it, use Left/Right or Up/Down to navigate, and Page Up /
+  Page Down to switch pages. Home/End select the first/last wallpaper. Enter
+  applies the selection; Escape restores the wallpaper from before opening.
+  Double-clicking a tile also applies it.
+- Reuse layout compatibility filtering, live-preview debounce, thumbnail caches,
+  and transactional Apply/Cancel for both picker styles. Screen position,
+  enable/disable, and confirmation-button visibility settings apply to both.
+- Load only the displayed and incoming grid pages. Keep the outgoing page visible
+  until incoming previews are ready; do not decode the carousel in grid mode.
+
 ## Changes in v1.17.1
 
 - Trace actual Canvas image-load requests, load-completion callbacks, canvas

@@ -92,6 +92,20 @@ elif args[1]=='wallpaper-set':
 
 
 class LivePreviewTests(LivePreviewFixture):
+    def test_grid_style_uses_layout_filtering_and_restores_live_preview(self):
+        (self.app / 'switcher-settings.json').write_text('{"style":"grid"}')
+        self.make_set('two-monitors', count=2)
+        process, ready = self.start_session()
+        self.assertEqual(ready['switcherSettings']['style'], 'grid')
+        self.assertNotIn('two-monitors', [item['name'] for item in ready['sets']])
+        self.assertEqual(self.send(process, 'preview', 'first')['event'], 'previewed')
+        self.assertNotEqual(self.current(), self.original)
+        self.assertEqual(self.send(process, 'cancel')['event'], 'cancelled')
+        self.assertEqual(process.wait(timeout=5), 0)
+        self.assertEqual(self.current(), self.original)
+        self.assertIsNone(self.memory())
+
+
     def test_thumbnail_warmup_reused_and_invalidated_without_changing_originals(self):
         preview = self.output / 'first.preview.jpg'
         subprocess.run(['magick', '-size', '1600x900', 'gradient:blue-red', str(preview)], check=True)

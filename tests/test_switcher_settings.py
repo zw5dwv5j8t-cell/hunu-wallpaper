@@ -14,17 +14,27 @@ class SwitcherSettingsTests(SwitcherFixture):
 
     def test_defaults_save_reload_and_validation_preserve_previous_file(self):
         result = self.settings('get')
-        self.assertEqual(json.loads(result.stdout), dict(enabled=True, position='center', livePreview=True, delayMs=400, showActionButtons=True))
+        self.assertEqual(json.loads(result.stdout), dict(enabled=True, style='carousel', position='center', livePreview=True, delayMs=400, showActionButtons=True))
         for position in ['top', 'center', 'bottom']:
             values = dict(enabled=False, position=position, livePreview=False, delayMs=750, showActionButtons=False)
             self.assertEqual(self.settings('save', values).returncode, 0)
-            self.assertEqual(json.loads(self.settings('get').stdout), values)
+            self.assertEqual(json.loads(self.settings('get').stdout), dict(values, style='carousel'))
         before = (self.app / 'switcher-settings.json').read_bytes()
-        for invalid in [{'position': 'left'}, {'enabled': 'false'}, {'delayMs': 0}, {'delayMs': True}, {'livePreview': 1}, {'showActionButtons': 'false'}, []]:
+        for invalid in [{'position': 'left'}, {'style': 'list'}, {'style': False}, {'enabled': 'false'}, {'delayMs': 0}, {'delayMs': True}, {'livePreview': 1}, {'showActionButtons': 'false'}, []]:
             with self.subTest(invalid=invalid):
                 self.assertNotEqual(self.settings('save', invalid).returncode, 0)
                 self.assertEqual((self.app / 'switcher-settings.json').read_bytes(), before)
         self.assertFalse(list(self.app.glob('.switcher-settings-*')))
+
+    def test_picker_styles_persist_and_old_preferences_default_to_carousel(self):
+        self.assertEqual(self.settings('save', dict(style='grid')).returncode, 0)
+        self.assertEqual(json.loads(self.settings('get').stdout)['style'], 'grid')
+        self.assertEqual(self.settings('save', dict(style='carousel')).returncode, 0)
+        self.assertEqual(json.loads(self.settings('get').stdout)['style'], 'carousel')
+        (self.app / 'switcher-settings.json').write_text('{"enabled":true,"position":"bottom"}')
+        settings = json.loads(self.settings('get').stdout)
+        self.assertEqual(settings['style'], 'carousel')
+        self.assertEqual(settings['position'], 'bottom')
 
     def test_disabled_hotkey_and_direct_actions_do_not_apply(self):
         self.make_set('first')
@@ -56,7 +66,7 @@ class PreviewPreferenceTests(preview_fixture.LivePreviewFixture):
         values = dict(enabled=True, position='bottom', livePreview=False, delayMs=900, showActionButtons=False)
         (self.app / 'switcher-settings.json').write_text(json.dumps(values))
         process, ready = self.start_session()
-        self.assertEqual(ready['switcherSettings'], values)
+        self.assertEqual(ready['switcherSettings'], dict(values, style='carousel'))
         self.assertFalse(ready['liveEnabled'])
         self.assertFalse(self.log.exists(), 'Disabled live preview must not query or change backend wallpapers')
         self.assertEqual(self.send(process, 'preview', 'first')['event'], 'error')

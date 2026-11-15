@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 HERE = Path(__file__).resolve().parent
-DEFAULTS = dict(enabled=True, position='center', livePreview=True, delayMs=400, showActionButtons=True)
+DEFAULTS = dict(enabled=True, style='carousel', position='center', livePreview=True, delayMs=400, showActionButtons=True)
 
 
 def settings_path():
@@ -22,6 +22,8 @@ def validate(values):
     result = {key: values.get(key, default) for key, default in DEFAULTS.items()}
     if any(type(result[key]) is not bool for key in ('enabled', 'livePreview', 'showActionButtons')):
         raise ValueError('Enable, live preview, and show buttons must be true or false.')
+    if result['style'] not in ('carousel', 'grid'):
+        raise ValueError('Picker style must be carousel or grid.')
     if result['position'] not in ('top', 'center', 'bottom'):
         raise ValueError('Position must be top, center, or bottom.')
     if type(result['delayMs']) is not int or not 100 <= result['delayMs'] <= 1500:

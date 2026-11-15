@@ -26,6 +26,10 @@ PanelWindow {
     property string errorText: ""
     onErrorTextChanged: { if (errorText !== "") console.warn(errorText) }
     readonly property var selectedSet: sets.length ? sets[selectedIndex] : null
+    property string pickerStyle: "carousel"
+    readonly property int selectedPage: Math.floor(selectedIndex / 9)
+    readonly property int displayedPage: Math.floor(displayedIndex / 9)
+    readonly property int pageCount: Math.ceil(sets.length / 9)
     property string verticalPosition: "center"
     property bool showActionButtons: true
     property int previewDelayMs: 400
@@ -69,10 +73,45 @@ PanelWindow {
     function helper(name) {
         return decodeURIComponent(Qt.resolvedUrl(name).toString().replace("file://", ""))
     }
+    function showRequested() {
+        if (pickerStyle === "grid")
+            wallpaperGrid.showRequested()
+        else
+            carousel.showRequested()
+    }
+    function showSelection() {
+        displayedIndex = selectedIndex
+        if (!firstFrameReady) {
+            firstFrameReady = true
+            trace("first-view-ready")
+            prefetchTimer.start()
+        }
+        if (confirmWhenVisible) {
+            confirmWhenVisible = false
+            confirm()
+        }
+    }
+    function choose(index) {
+        if (busy || index < 0 || index >= sets.length)
+            return
+        hasNavigated = true
+        selectedIndex = index
+        beginDecoding()
+        Qt.callLater(picker.showRequested)
+    }
+    function changePage(step) {
+        if (busy || !sets.length)
+            return
+        const page = Math.max(0, Math.min(pageCount - 1, selectedPage + step))
+        if (page !== selectedPage)
+            choose(Math.min(sets.length - 1, page * 9 + selectedIndex % 9))
+    }
     function move(step) {
         if (!busy && sets.length) {
             hasNavigated = true
-            selectedIndex = (selectedIndex + step + sets.length) % sets.length
+            selectedIndex = pickerStyle === "grid"
+                ? Math.max(0, Math.min(sets.length - 1, selectedIndex + step))
+                : (selectedIndex + step + sets.length) % sets.length
             beginDecoding()
         }
     }
@@ -84,7 +123,7 @@ PanelWindow {
     }
     onSelectedSetChanged: {
         schedulePreview()
-        Qt.callLater(function() { if (carousel) carousel.showRequested() })
+        Qt.callLater(picker.showRequested)
     }
     function dispatch() {
         if (!initialized || !sessionProcess.running || inFlight !== "")
@@ -110,7 +149,7 @@ PanelWindow {
     function confirm() {
         if (busy || !selectedSet)
             return
-        if (displayedIndex !== selectedIndex) {
+        if (!firstFrameReady || displayedIndex !== selectedIndex) {
             confirmWhenVisible = true
             return
         }
@@ -151,7 +190,7 @@ PanelWindow {
                 // its unused neighbor instead of painting both triplets.
                 if (!firstFrameReady)
                     displayedIndex = selectedIndex
-                Qt.callLater(function() { carousel.showRequested() })
+                Qt.callLater(picker.showRequested)
             } else if (hasNavigated && intent === "") {
                 schedulePreview()
             }
@@ -167,6 +206,7 @@ PanelWindow {
             liveEnabled = snapshotReady && result.liveEnabled === true
             liveReason = result.liveReason || ""
             const preferences = result.switcherSettings || ({})
+            pickerStyle = preferences.style === "grid" ? "grid" : "carousel"
             verticalPosition = preferences.position || "center"
             previewDelayMs = preferences.delayMs || 400
             showActionButtons = preferences.showActionButtons !== false
@@ -284,9 +324,18 @@ PanelWindow {
         // Keep Canvas rasterization active during warmup. This opacity is below
         // one 8-bit alpha step, so controls and images remain imperceptible.
         opacity: picker.firstFrameReady || picker.errorText !== "" || (picker.initialized && !picker.sets.length) ? 1 : 0.001
-        width: Math.min(1480, parent.width - 64)
+        width: Math.min(picker.pickerStyle === "grid" ? 1120 : 1480, parent.width - 64)
         height: Math.min(720, parent.height - 64)
-        // Keep the overlay surface transparent: only images and controls draw.
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -16
+            visible: picker.pickerStyle === "grid"
+            color: "#f015191f"
+            radius: 28
+            border.width: 1
+            border.color: "#39424f"
+        }
+        // The carousel remains transparent; the grid has a framed popup surface.
         MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
 
         FocusScope {
@@ -299,6 +348,18 @@ PanelWindow {
                     picker.move(event.modifiers & Qt.ShiftModifier ? -1 : 1)
                 } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Backtab) {
                     picker.move(-1)
+                } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_Up) {
+                    picker.move(-3)
+                } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_Down) {
+                    picker.move(3)
+                } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_PageUp) {
+                    picker.changePage(-1)
+                } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_PageDown) {
+                    picker.changePage(1)
+                } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_Home) {
+                    picker.choose(0)
+                } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_End) {
+                    picker.choose(picker.sets.length - 1)
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                     picker.confirm()
                 } else if (event.key === Qt.Key_Escape) {
@@ -316,7 +377,7 @@ PanelWindow {
                     objectName: "previewCarousel"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    visible: picker.sets.length > 0
+                    visible: picker.pickerStyle === "carousel" && picker.sets.length > 0
                     readonly property bool hasNeighbors: picker.sets.length > 1
 
                     function offset(index, base) {
@@ -343,24 +404,15 @@ PanelWindow {
                                     || (!picker.firstFrameReady && !loader.item.frameReady))
                                 return
                         }
-                        // Commit all three positions in the same QML update.
-                        picker.displayedIndex = picker.selectedIndex
-                        if (!picker.firstFrameReady) {
-                            picker.firstFrameReady = true
-                            picker.trace("first-view-ready")
-                            prefetchTimer.start()
-                        }
-                        if (picker.confirmWhenVisible) {
-                            picker.confirmWhenVisible = false
-                            picker.confirm()
-                        }
+                        // Commit the displayed selection in one QML update.
+                        picker.showSelection()
                     }
                     Repeater {
                         id: previewPool
                         // Lightweight loaders only; keep at most five requested
                         // previews plus the outgoing triplet decoded in memory.
-                        model: picker.sets.length
-                        onItemAdded: Qt.callLater(carousel.showRequested)
+                        model: picker.pickerStyle === "carousel" ? picker.sets.length : 0
+                        onItemAdded: Qt.callLater(picker.showRequested)
                         delegate: Loader {
                             id: slot
                             required property int index
@@ -382,7 +434,7 @@ PanelWindow {
                             opacity: !onScreen ? 0 : displacement === 0 ? 1
                                 : item && item.hovered ? 0.9 : 0.65
                             enabled: onScreen && !picker.busy
-                            onLoaded: Qt.callLater(carousel.showRequested)
+                            onLoaded: Qt.callLater(picker.showRequested)
                             sourceComponent: RoundedPreview {
                                 id: asset
                                 readonly property int neighborIndex: slot.index
@@ -403,12 +455,15 @@ PanelWindow {
                                 Accessible.name: wallpaperSet ? wallpaperSet.title : "Wallpaper preview"
                                 Accessible.description: wallpaperSet && !wallpaperSet.previewIsSource
                                     ? "Monitor crop preview" : "Full source preview"
-                                onFrameReadyChanged: if (frameReady && !picker.firstFrameReady)
-                                    picker.trace((nativeRenderer ? "preview-prepared-native-" : "preview-painted-") + slot.index)
+                                onFrameReadyChanged: if (frameReady) {
+                                    if (!picker.firstFrameReady)
+                                        picker.trace((nativeRenderer ? "preview-prepared-native-" : "preview-painted-") + slot.index)
+                                    Qt.callLater(picker.showRequested)
+                                }
                                 onPreparedChanged: if (prepared) {
                                     if (!picker.firstFrameReady)
                                         picker.trace("preview-ready-" + slot.index)
-                                    Qt.callLater(carousel.showRequested)
+                                    Qt.callLater(picker.showRequested)
                                 }
                                 MouseArea {
                                     id: previewMouse
@@ -421,6 +476,93 @@ PanelWindow {
                                         controls.forceActiveFocus()
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+                Item {
+                    id: wallpaperGrid
+                    objectName: "wallpaperGrid"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: picker.pickerStyle === "grid" && picker.sets.length > 0
+                    readonly property real gap: 14
+                    readonly property real cellWidth: Math.max(1, (width - gap * 2) / 3)
+                    readonly property real cellHeight: Math.max(1, (height - gap * 2) / 3)
+                    function showRequested() {
+                        if (!picker.sets.length)
+                            return
+                        const start = picker.selectedPage * 9
+                        const end = Math.min(start + 9, picker.sets.length)
+                        for (let index = start; index < end; ++index) {
+                            const loader = gridPool.itemAt(index)
+                            if (!loader || !loader.item || !loader.item.prepared
+                                    || (!picker.firstFrameReady && !loader.item.frameReady))
+                                return
+                        }
+                        picker.showSelection()
+                    }
+                    Repeater {
+                        id: gridPool
+                        model: picker.pickerStyle === "grid" ? picker.sets.length : 0
+                        onItemAdded: Qt.callLater(picker.showRequested)
+                        delegate: Loader {
+                            id: gridSlot
+                            required property int index
+                            readonly property int page: Math.floor(index / 9)
+                            active: picker.decodingStarted && (page === picker.selectedPage || page === picker.displayedPage)
+                            width: wallpaperGrid.cellWidth
+                            height: wallpaperGrid.cellHeight
+                            x: (index % 3) * (width + wallpaperGrid.gap)
+                            y: (Math.floor(index / 3) % 3) * (height + wallpaperGrid.gap)
+                            opacity: page === picker.displayedPage ? 1 : 0
+                            enabled: page === picker.displayedPage && !picker.busy
+                            onLoaded: Qt.callLater(picker.showRequested)
+                            sourceComponent: Item {
+                                objectName: "gridTile"
+                                readonly property int wallpaperIndex: gridSlot.index
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 18
+                                    color: gridMouse.containsMouse ? "#252e38" : "#1b222b"
+                                    border.width: gridSlot.index === picker.selectedIndex ? 2 : 1
+                                    border.color: gridSlot.index === picker.selectedIndex ? "#a7e7c4" : "#303c49"
+                                }
+                                RoundedPreview {
+                                    id: gridAsset
+                                    objectName: "gridPreview"
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    readonly property var wallpaperSet: picker.sets[gridSlot.index] || null
+                                    source: wallpaperSet ? wallpaperSet.previewUrl : ""
+                                    fallbackSource: wallpaperSet ? wallpaperSet.fallbackPreviewUrl : ""
+                                    sourceGeometry: wallpaperSet && wallpaperSet.previewSize ? wallpaperSet.previewSize : [1, 1]
+                                    fallbackGeometry: wallpaperSet && wallpaperSet.fallbackPreviewSize ? wallpaperSet.fallbackPreviewSize : sourceGeometry
+                                    sourceSize: Qt.size(480, 300)
+                                    traceIndex: gridSlot.index
+                                    highlighted: gridSlot.index === picker.selectedIndex
+                                    shadowEnabled: false
+                                    onPreparedChanged: if (prepared) Qt.callLater(picker.showRequested)
+                                    onFrameReadyChanged: if (frameReady) Qt.callLater(picker.showRequested)
+                                }
+                                readonly property bool prepared: gridAsset.prepared
+                                readonly property bool frameReady: gridAsset.frameReady
+                                MouseArea {
+                                    id: gridMouse
+                                    objectName: "gridTileMouse"
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: { picker.choose(gridSlot.index); controls.forceActiveFocus() }
+                                    onDoubleClicked: { picker.choose(gridSlot.index); picker.confirm() }
+                                }
+                                ToolTip.visible: gridMouse.containsMouse
+                                ToolTip.delay: 600
+                                ToolTip.text: gridAsset.wallpaperSet ? gridAsset.wallpaperSet.title : ""
+                                Accessible.role: Accessible.Button
+                                Accessible.name: gridAsset.wallpaperSet ? gridAsset.wallpaperSet.title : "Wallpaper"
+                                Accessible.selected: gridSlot.index === picker.selectedIndex
+                                Accessible.onPressAction: picker.choose(gridSlot.index)
                             }
                         }
                     }
@@ -454,16 +596,24 @@ PanelWindow {
                     IconButton {
                         objectName: "previousButton"
                         symbol: "previous"
-                        actionName: "Previous wallpaper"
-                        enabled: !picker.busy && picker.sets.length > 1
-                        onClicked: picker.move(-1)
+                        actionName: picker.pickerStyle === "grid" ? "Previous page" : "Previous wallpaper"
+                        enabled: !picker.busy && (picker.pickerStyle === "grid" ? picker.selectedPage > 0 : picker.sets.length > 1)
+                        onClicked: picker.pickerStyle === "grid" ? picker.changePage(-1) : picker.move(-1)
+                    }
+                    Text {
+                        objectName: "gridPageIndicator"
+                        visible: picker.pickerStyle === "grid"
+                        text: picker.pageCount ? (picker.displayedPage + 1) + " / " + picker.pageCount : "0 / 0"
+                        color: "#c9d1d9"
+                        font.pixelSize: 16
+                        Accessible.name: "Wallpaper page " + text
                     }
                     IconButton {
                         objectName: "nextButton"
                         symbol: "next"
-                        actionName: "Next wallpaper"
-                        enabled: !picker.busy && picker.sets.length > 1
-                        onClicked: picker.move(1)
+                        actionName: picker.pickerStyle === "grid" ? "Next page" : "Next wallpaper"
+                        enabled: !picker.busy && (picker.pickerStyle === "grid" ? picker.selectedPage < picker.pageCount - 1 : picker.sets.length > 1)
+                        onClicked: picker.pickerStyle === "grid" ? picker.changePage(1) : picker.move(1)
                     }
                 }
                 RowLayout {
@@ -515,7 +665,7 @@ PanelWindow {
         readonly property bool frameReady: nativeRenderer ? !!renderer && renderer.frameReady
             : paintedImage.status === Image.Error
                 || (prepared && paintedImage.renderedUrl.toString() === paintedImage.imageUrl.toString())
-        onFrameReadyChanged: if (frameReady) Qt.callLater(carousel.showRequested)
+        onFrameReadyChanged: if (frameReady) Qt.callLater(picker.showRequested)
         onHighlightedChanged: paintedImage.requestPaint()
 
         // The controller supplies header geometry. Canvas is the only pixel
