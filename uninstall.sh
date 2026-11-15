@@ -22,6 +22,14 @@ BACKUP_ROOT="$STATE_HOME/$APP_NAME/backups"
 printf '\nHunu Wallpaper Splitter (%s) — uninstaller\n' "$APP_NAME"
 printf '============================================\n\n'
 
+# Stop this installation's opt-in timer before removing its executable.
+if [[ -f "$CONFIG_DIR/rotation-settings.py" ]]; then
+    python3 "$CONFIG_DIR/rotation-settings.py" disable || {
+        printf 'Could not stop automatic cycling; installation was left intact.\n' >&2
+        exit 1
+    }
+fi
+
 rm -rf "$CONFIG_DIR"
 rm -rf "$CACHE_DIR"
 rm -f "$DESKTOP_FILE" "$ICON_FILE"

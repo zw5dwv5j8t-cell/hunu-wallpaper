@@ -22,7 +22,7 @@ class NativeParallelStartupTests(parallel.ParallelStartupTests):
 @unittest.skipUnless(BINARY.is_file(), 'Build the Rust startup helper first')
 class NativeSettingsTests(unittest.TestCase):
     def test_preferences_match_python_validation(self):
-        cases = [None, {}, {'style': 'grid'}, {'style': 'carousel'}, {'style': 'list'}, {'style': False}, {'enabled': False}, {'enabled': True, 'position': 'top', 'delayMs': 100},
+        cases = [None, {}, {'style': 'grid'}, {'style': 'spotlight'}, {'style': 'filmstrip'}, {'style': 'browser'}, {'style': 'carousel'}, {'style': 'list'}, {'style': False}, {'enabled': False}, {'enabled': True, 'position': 'top', 'delayMs': 100},
                  {'enabled': 1}, {'livePreview': 'false'}, {'showActionButtons': None},
                  {'position': 'left'}, {'delayMs': 400.0}, {'delayMs': True},
                  {'delayMs': 99}, {'delayMs': 1501}, [], None, 'invalid-json']

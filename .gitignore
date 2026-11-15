@@ -23,3 +23,6 @@ backups/
 # Rust build outputs and optional development helper
 /native/target/
 /src/hunu-switcher-native
+
+/config/rotation-settings.json
+/config/.rotation-settings.lock

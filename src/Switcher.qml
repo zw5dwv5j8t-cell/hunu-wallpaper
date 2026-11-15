@@ -67,6 +67,7 @@ PanelWindow {
     property string inFlight: ""
     property string queuedName: ""
     property string previewedName: ""
+    property bool settingsOpen: false
     property bool normalExit: false
     readonly property bool busy: !initialized || intent !== "" || confirmWhenVisible
 
@@ -76,8 +77,10 @@ PanelWindow {
     function showRequested() {
         if (pickerStyle === "grid")
             wallpaperGrid.showRequested()
-        else
+        else if (pickerStyle === "carousel")
             carousel.showRequested()
+        else if (alternatives.item)
+            alternatives.item.showRequested()
     }
     function showSelection() {
         displayedIndex = selectedIndex
@@ -91,6 +94,7 @@ PanelWindow {
             confirm()
         }
     }
+    function focusPicker() { controls.forceActiveFocus() }
     function choose(index) {
         if (busy || index < 0 || index >= sets.length)
             return
@@ -109,14 +113,14 @@ PanelWindow {
     function move(step) {
         if (!busy && sets.length) {
             hasNavigated = true
-            selectedIndex = pickerStyle === "grid"
+            selectedIndex = pickerStyle !== "carousel"
                 ? Math.max(0, Math.min(sets.length - 1, selectedIndex + step))
                 : (selectedIndex + step + sets.length) % sets.length
             beginDecoding()
         }
     }
     function schedulePreview() {
-        if (initialized && liveEnabled && selectedSet && intent === "") {
+        if (initialized && liveEnabled && selectedSet && intent === "" && !settingsOpen) {
             queuedName = selectedSet.name
             debounce.restart()
         }
@@ -127,6 +131,8 @@ PanelWindow {
     }
     function dispatch() {
         if (!initialized || !sessionProcess.running || inFlight !== "")
+            return
+        if (settingsOpen && intent === "")
             return
         let action = intent
         let name = selectedSet ? selectedSet.name : ""
@@ -206,7 +212,7 @@ PanelWindow {
             liveEnabled = snapshotReady && result.liveEnabled === true
             liveReason = result.liveReason || ""
             const preferences = result.switcherSettings || ({})
-            pickerStyle = preferences.style === "grid" ? "grid" : "carousel"
+            pickerStyle = ["carousel", "grid", "spotlight", "filmstrip", "browser"].indexOf(preferences.style) >= 0 ? preferences.style : "carousel"
             verticalPosition = preferences.position || "center"
             previewDelayMs = preferences.delayMs || 400
             showActionButtons = preferences.showActionButtons !== false
@@ -259,7 +265,32 @@ PanelWindow {
             ? ["python3", helper("switcher-transport.py"), startupSocket]
             : ["python3", helper("switcher-controller.py"), "session"]
     }
-    onClosed: cancel()
+    function openSettings() {
+        if (busy || !initialized)
+            return
+        settingsOpen = true
+        queuedName = ""
+        debounce.stop()
+        visible = false
+        settingsWindow.setSource("PickerSettingsWindow.qml", {embedded: true})
+        settingsWindow.active = true
+    }
+    function closeSettings() {
+        settingsWindow.active = false
+        settingsOpen = false
+        visible = true
+        focusPicker()
+    }
+    Loader {
+        id: settingsWindow
+        active: false
+        onStatusChanged: if (status === Loader.Error) picker.closeSettings()
+    }
+    Connections {
+        target: settingsWindow.item
+        function onCloseRequested() { Qt.callLater(picker.closeSettings) }
+    }
+    onClosed: if (!settingsOpen) cancel()
     Component.onCompleted: {
         trace("qml-ready", {previewRenderer: nativePreviews ? "native-trial" : "canvas"})
         sessionProcess.command = controllerCommand(Quickshell.env("HUNU_SWITCHER_PARALLEL"),
@@ -324,12 +355,12 @@ PanelWindow {
         // Keep Canvas rasterization active during warmup. This opacity is below
         // one 8-bit alpha step, so controls and images remain imperceptible.
         opacity: picker.firstFrameReady || picker.errorText !== "" || (picker.initialized && !picker.sets.length) ? 1 : 0.001
-        width: Math.min(picker.pickerStyle === "grid" ? 1120 : 1480, parent.width - 64)
-        height: Math.min(720, parent.height - 64)
+        width: Math.min(picker.pickerStyle === "grid" ? 1120 : picker.pickerStyle === "browser" ? 1280 : picker.pickerStyle === "spotlight" ? 1200 : 1480, parent.width - 64)
+        height: Math.min(picker.pickerStyle === "filmstrip" ? 400 : 720, parent.height - 64)
         Rectangle {
             anchors.fill: parent
             anchors.margins: -16
-            visible: picker.pickerStyle === "grid"
+            visible: ["grid", "filmstrip", "browser"].indexOf(picker.pickerStyle) >= 0
             color: "#f015191f"
             radius: 28
             border.width: 1
@@ -348,6 +379,10 @@ PanelWindow {
                     picker.move(event.modifiers & Qt.ShiftModifier ? -1 : 1)
                 } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Backtab) {
                     picker.move(-1)
+                } else if (picker.pickerStyle === "browser" && event.key === Qt.Key_Up) {
+                    picker.move(-1)
+                } else if (picker.pickerStyle === "browser" && event.key === Qt.Key_Down) {
+                    picker.move(1)
                 } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_Up) {
                     picker.move(-3)
                 } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_Down) {
@@ -356,9 +391,9 @@ PanelWindow {
                     picker.changePage(-1)
                 } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_PageDown) {
                     picker.changePage(1)
-                } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_Home) {
+                } else if (picker.pickerStyle !== "carousel" && event.key === Qt.Key_Home) {
                     picker.choose(0)
-                } else if (picker.pickerStyle === "grid" && event.key === Qt.Key_End) {
+                } else if (picker.pickerStyle !== "carousel" && event.key === Qt.Key_End) {
                     picker.choose(picker.sets.length - 1)
                 } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                     picker.confirm()
@@ -567,6 +602,19 @@ PanelWindow {
                         }
                     }
                 }
+                Loader {
+                    id: alternatives
+                    objectName: "alternativePicker"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: active && picker.sets.length > 0
+                    active: ["spotlight", "filmstrip", "browser"].indexOf(picker.pickerStyle) >= 0
+                    Component.onCompleted: if (active) setSource("PickerAlternatives.qml", {picker: picker, previewComponent: alternativePreview})
+                    onActiveChanged: if (active) setSource("PickerAlternatives.qml", {picker: picker, previewComponent: alternativePreview})
+                    onLoaded: {
+                        Qt.callLater(picker.showRequested)
+                    }
+                }
                 Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
@@ -602,8 +650,10 @@ PanelWindow {
                     }
                     Text {
                         objectName: "gridPageIndicator"
-                        visible: picker.pickerStyle === "grid"
-                        text: picker.pageCount ? (picker.displayedPage + 1) + " / " + picker.pageCount : "0 / 0"
+                        visible: picker.pickerStyle !== "carousel"
+                        text: picker.pickerStyle === "grid"
+                            ? (picker.pageCount ? (picker.displayedPage + 1) + " / " + picker.pageCount : "0 / 0")
+                            : (picker.sets.length ? (picker.displayedIndex + 1) + " / " + picker.sets.length : "0 / 0")
                         color: "#c9d1d9"
                         font.pixelSize: 16
                         Accessible.name: "Wallpaper page " + text
@@ -614,6 +664,16 @@ PanelWindow {
                         actionName: picker.pickerStyle === "grid" ? "Next page" : "Next wallpaper"
                         enabled: !picker.busy && (picker.pickerStyle === "grid" ? picker.selectedPage < picker.pageCount - 1 : picker.sets.length > 1)
                         onClicked: picker.pickerStyle === "grid" ? picker.changePage(1) : picker.move(1)
+                    }
+                    IconButton {
+                        objectName: "pickerSettingsButton"
+                        symbol: "settings"
+                        actionName: "Picker settings"
+                        implicitWidth: 48
+                        implicitHeight: 48
+                        padding: 12
+                        enabled: !picker.busy && picker.initialized
+                        onClicked: picker.openSettings()
                     }
                 }
                 RowLayout {
@@ -639,6 +699,8 @@ PanelWindow {
             }
         }
     }
+
+    Component { id: alternativePreview; RoundedPreview {} }
 
     // Clip the pixels and paint the border in one rounded path. Canvas uses the
     // same implementation with GPU and software rendering; no shader mask needed.
@@ -876,6 +938,18 @@ PanelWindow {
             } else if (symbol === "cancel") {
                 ctx.moveTo(9, 9); ctx.lineTo(23, 23)
                 ctx.moveTo(23, 9); ctx.lineTo(9, 23)
+            } else if (symbol === "settings") {
+                for (let i = 0; i < 32; ++i) {
+                    const angle = (i - 0.5) * Math.PI / 16
+                    const radius = i % 4 < 2 ? 13 : 10
+                    const x = 16 + Math.cos(angle) * radius
+                    const y = 16 + Math.sin(angle) * radius
+                    if (i === 0) ctx.moveTo(x, y)
+                    else ctx.lineTo(x, y)
+                }
+                ctx.closePath()
+                ctx.moveTo(20, 16)
+                ctx.arc(16, 16, 4, 0, Math.PI * 2)
             } else if (symbol === "warning") {
                 ctx.moveTo(16, 4); ctx.lineTo(29, 27); ctx.lineTo(3, 27); ctx.closePath()
                 ctx.moveTo(16, 12); ctx.lineTo(16, 18)

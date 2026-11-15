@@ -27,3 +27,9 @@ HunuSegmented 1.0 HunuSegmented.qml
 HunuSettingsRow 1.0 HunuSettingsRow.qml
 HunuScrollBar 1.0 HunuScrollBar.qml
 HunuScrollView 1.0 HunuScrollView.qml
+
+PickerPreferences 1.0 PickerPreferences.qml
+
+PickerSettingsPanel 1.0 PickerSettingsPanel.qml
+
+PickerSettingsWindow 1.0 PickerSettingsWindow.qml

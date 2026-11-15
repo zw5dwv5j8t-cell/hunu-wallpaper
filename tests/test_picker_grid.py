@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @contextmanager
-def grid_picker(count=20, current=0):
+def grid_picker(count=20, current=0, style="grid"):
     os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
     os.environ.setdefault('QT_QUICK_BACKEND', 'software')
     from PySide6.QtCore import QObject, Property, Signal, Slot, QUrl
@@ -41,6 +41,10 @@ def grid_picker(count=20, current=0):
     class Parser(QObject):
         read = Signal(str)
 
+    class Collector(QObject):
+        streamFinished = Signal()
+        text = Property(str, lambda s: "")
+
     class Ipc(QObject):
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -48,7 +52,7 @@ def grid_picker(count=20, current=0):
         target = Property(str, lambda s: s.name, lambda s, v: setattr(s, 'name', v))
 
     app = QGuiApplication.instance() or QGuiApplication([])
-    for cls, name in [(Process, 'Process'), (Parser, 'SplitParser'), (Ipc, 'IpcHandler')]:
+    for cls, name in [(Process, 'Process'), (Parser, 'SplitParser'), (Ipc, 'IpcHandler'), (Collector, 'StdioCollector')]:
         qmlRegisterType(cls, 'HunuGridTestIo', 1, 0, name)
     with tempfile.TemporaryDirectory() as folder:
         base = Path(folder)
@@ -56,10 +60,12 @@ def grid_picker(count=20, current=0):
         module.mkdir()
         (module / 'qmldir').write_text('module Quickshell\nFloatingWindow 1.0 FloatingWindow.qml\nsingleton Quickshell 1.0 Quickshell.qml\n')
         (module / 'Quickshell.qml').write_text('pragma Singleton\nimport QtQuick\nQtObject { property var screens: []; function env(name) { return undefined } }')
-        (module / 'FloatingWindow.qml').write_text('import QtQuick\nimport QtQuick.Window\nWindow { width: 1280; height: 900; signal closed() }')
+        (module / 'FloatingWindow.qml').write_text('import QtQuick\nimport QtQuick.Window\nWindow { transientParent: null; property real implicitWidth: 1280; property real implicitHeight: 900; width: implicitWidth; height: implicitHeight; signal closed(); onClosing: closed() }')
         source = (ROOT / 'src/Switcher.qml').read_text().replace('import Quickshell.Wayland', '').replace('import Quickshell.Io', 'import HunuGridTestIo').replace('PanelWindow {', 'FloatingWindow {')
         source = '\n'.join(line for line in source.splitlines() if not any(token in line for token in ['anchors { top:', 'exclusionMode:', 'WlrLayershell.']))
         (base / 'Switcher.qml').write_text(source)
+        from qt_fixtures import prepare_controls
+        prepare_controls(base, io_module='HunuGridTestIo')
         sets = []
         for index in range(count):
             image = QImage(640, 360, QImage.Format_RGB32)
@@ -100,10 +106,12 @@ def grid_picker(count=20, current=0):
             assert predicate(), f'Timed out; Qt warnings: {warnings}'
         receive(dict(event='ready', sets=sets, layout={}, hidden=0, backend='noctalia', current=f'Set {current}' if count else '',
                      focusedOutput='', liveEnabled=True, liveReason='',
-                     switcherSettings=dict(style='grid', position='center', showActionButtons=True, delayMs=100)))
+                     switcherSettings=dict(style=style, position='center', showActionButtons=True, delayMs=100)))
         root.requestActivate()
         try:
             wait(lambda: root.property('firstFrameReady') or not count)
+            if not count:
+                QTest.qWait(30)  # Let an empty window receive focus before key events.
             yield SimpleNamespace(root=root, sets=sets, writes=writes, receive=receive, call=call, find=find, items=items, wait=wait,
                                   engine=engine, warnings=warnings, base=base, QTest=QTest)
         finally:

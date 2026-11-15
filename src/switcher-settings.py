@@ -22,8 +22,8 @@ def validate(values):
     result = {key: values.get(key, default) for key, default in DEFAULTS.items()}
     if any(type(result[key]) is not bool for key in ('enabled', 'livePreview', 'showActionButtons')):
         raise ValueError('Enable, live preview, and show buttons must be true or false.')
-    if result['style'] not in ('carousel', 'grid'):
-        raise ValueError('Picker style must be carousel or grid.')
+    if result['style'] not in ('carousel', 'grid', 'spotlight', 'filmstrip', 'browser'):
+        raise ValueError('Choose a supported picker style.')
     if result['position'] not in ('top', 'center', 'bottom'):
         raise ValueError('Position must be top, center, or bottom.')
     if type(result['delayMs']) is not int or not 100 <= result['delayMs'] <= 1500:

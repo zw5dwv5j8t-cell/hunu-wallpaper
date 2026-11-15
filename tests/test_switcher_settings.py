@@ -27,8 +27,9 @@ class SwitcherSettingsTests(SwitcherFixture):
         self.assertFalse(list(self.app.glob('.switcher-settings-*')))
 
     def test_picker_styles_persist_and_old_preferences_default_to_carousel(self):
-        self.assertEqual(self.settings('save', dict(style='grid')).returncode, 0)
-        self.assertEqual(json.loads(self.settings('get').stdout)['style'], 'grid')
+        for style in ('grid', 'spotlight', 'filmstrip', 'browser'):
+            self.assertEqual(self.settings('save', dict(style=style)).returncode, 0)
+            self.assertEqual(json.loads(self.settings('get').stdout)['style'], style)
         self.assertEqual(self.settings('save', dict(style='carousel')).returncode, 0)
         self.assertEqual(json.loads(self.settings('get').stdout)['style'], 'carousel')
         (self.app / 'switcher-settings.json').write_text('{"enabled":true,"position":"bottom"}')

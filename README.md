@@ -8,6 +8,32 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.19.0
+
+- Add **Spotlight**, **Filmstrip**, and **Browser** alongside Carousel and Grid.
+  Spotlight shows one large floating image; Filmstrip shows five equal previews;
+  Browser pairs a large preview with a scrollable wallpaper list. Carousel stays
+  the default, and existing preferences remain valid.
+- Add a gear button to every picker, including when Apply/Cancel buttons are
+  hidden. It opens a separate **Picker settings** window containing style,
+  position, preview, and cycling options. Closing it returns to the picker;
+  saved picker changes take effect the next time the picker opens.
+- Reuse the same settings controls and storage in the main app's Switcher page.
+- Add opt-in **Automatic cycling**: random compatible saved wallpapers at an
+  interval of 1–1440 minutes (default 15), with **Avoid immediate repeats** on by
+  default. Cycling runs when the main app and picker are closed and is independent
+  of whether the visual picker is enabled.
+- Use a per-installation systemd user timer and short-lived controller jobs.
+  No Hunu GUI or custom background daemon stays resident. Timers start after the
+  chosen interval and resume on user login; their compositor session must be
+  available. Ticks skip while a picker or Apply transaction holds the shared lock.
+- Recheck output assignments and resolutions at each tick, and restore readable
+  native wallpaper state on partial Apply failure. Disabling cycling stops and
+  removes its timer; uninstalling stops cycling before removing application files.
+- Require a running systemd user session only for automatic cycling. If it is
+  unavailable, the rest of the picker still works. Failed timer updates restore
+  the previous settings instead of reporting a successful enable.
+
 ## Changes in v1.18.0
 
 - Add **Settings → Switcher → Picker style** with **Carousel** and **Grid**.
@@ -443,6 +469,7 @@ Optional:
 - hyprpaper — optional wallpaper Apply backend for Hyprland.
 - awww — optional wallpaper Apply backend for compatible Wayland compositors.
 - Noctalia Shell — optional wallpaper Apply backend through Quickshell IPC.
+- A systemd user session — enables optional timed automatic wallpaper cycling.
 - Real-ESRGAN (`realesrgan-ncnn-vulkan`) — enables optional AI upscaling.
   Hunu works normally without it.
 

@@ -73,6 +73,7 @@ class PickerInteractionTests(unittest.TestCase):
             source = '\n'.join(line for line in source.splitlines() if not any(v in line for v in
                                ['anchors { top:', 'exclusionMode:', 'WlrLayershell.']))
             (base / 'Switcher.qml').write_text(source)
+            (base / 'PickerAlternatives.qml').write_text((ROOT / 'src/PickerAlternatives.qml').read_text())
             if os.environ.get('HUNU_QA_MISSING_NATIVE_PREVIEW') != '1':
                 (base / 'NativeSwitcherImage.qml').write_text((ROOT / 'src/NativeSwitcherImage.qml').read_text())
             engine = QQmlApplicationEngine()

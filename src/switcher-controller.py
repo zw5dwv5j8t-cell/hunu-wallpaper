@@ -7,6 +7,7 @@ import importlib.util
 import hashlib
 import json
 import os
+import random
 import shutil
 import signal
 import socket
@@ -556,13 +557,64 @@ def run_session(channel=None):
                     thumbnails.close()
 
 
+def rotate():
+    """One timer tick; never run a GUI or compete with an active picker."""
+    spec = importlib.util.spec_from_file_location('rotation_prefs', HERE / 'rotation-settings.py')
+    rotation = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rotation)
+    preferences = rotation.load()
+    if not preferences['enabled']:
+        return
+    path = state_path().with_name('wallpaper-apply.lock')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            trace('rotation-skipped', reason='A picker or wallpaper Apply is active.')
+            return
+        session = PreviewSession(lock)
+        def stop(_signal, _frame):
+            raise SessionStopped()
+        signal.signal(signal.SIGTERM, stop)
+        signal.signal(signal.SIGINT, stop)
+        try:
+            try:
+                result = listing()
+            except (OSError, ValueError, subprocess.SubprocessError):
+                trace('rotation-skipped', reason='Monitor setup or wallpaper library is unavailable.')
+                return
+            # Capture readable native wallpaper state for rollback even if the
+            # visual picker's live-preview setting is disabled.
+            result['switcherSettings'] = dict(result['switcherSettings'], livePreview=True)
+            readable, _ = session.capture(result)
+            current = result['current']
+            if readable:
+                current = next((item['name'] for item in result['sets'] if
+                    {row['output']: str(Path(row['file']).resolve()) for row in item['monitors']} == session.original), '')
+            candidates = [item for item in result['sets'] if not preferences['avoidRepeat'] or item['name'] != current]
+            if not candidates:
+                return
+            session.select(random.choice(candidates)['name'], commit=True)
+        except SessionStopped:
+            pass
+        finally:
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            if not session.committed:
+                session.restore()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['list', 'apply', 'next', 'previous', 'record', 'session', 'serve'])
+    parser.add_argument('action', choices=['list', 'apply', 'next', 'previous', 'record', 'session', 'serve', 'rotate'])
     parser.add_argument('arguments', nargs='*')
     args = parser.parse_args()
     if args.action in ('session', 'serve', 'apply', 'next', 'previous') and not switcher_prefs.load()['enabled']:
         raise ValueError('Wallpaper switcher is disabled in Hunu Settings.')
+    if args.action == 'rotate':
+        rotate()
+        return
     if args.action == 'serve':
         if len(args.arguments) != 1:
             raise ValueError('Expected a private startup socket path.')

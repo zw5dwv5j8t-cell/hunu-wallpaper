@@ -57,7 +57,7 @@ import QtQuick
 QtObject { property color base: '#181825'; property color text: '#cdd6f4'; property color subtext: '#a6adc8'; property color success: '#a6e3a1'; property color muted: '#6c7086'; property bool usingSystemTheme: false }
 ''')
             from qt_fixtures import prepare_controls
-            prepare_controls(base)
+            prepare_controls(base, io_module="HunuSettingsTestIo")
             (base / 'Harness.qml').write_text('''import QtQuick
 import QtQuick.Controls
 ApplicationWindow {
@@ -119,6 +119,18 @@ ApplicationWindow {
             self.assertEqual(style.property('currentIndex'), 0, 'Old preferences keep Carousel')
             point = style.mapToScene(QPointF(style.width()*3/4, style.height()/2)).toPoint()
             QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            QTest.keyClick(root, Qt.Key_Down)
+            QTest.keyClick(root, Qt.Key_Return)
+            self.assertEqual(settings.property('switcherStyle'), 'grid')
+            for expected in ['spotlight', 'filmstrip', 'browser']:
+                QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+                QTest.keyClick(root, Qt.Key_Down)
+                QTest.keyClick(root, Qt.Key_Return)
+                self.assertEqual(settings.property('switcherStyle'), expected)
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            QTest.keyClick(root, Qt.Key_Home)
+            QTest.keyClick(root, Qt.Key_Down)
+            QTest.keyClick(root, Qt.Key_Return)
             self.assertEqual(settings.property('switcherStyle'), 'grid')
             point = enabled.mapToScene(QPointF(15, enabled.height() / 2)).toPoint()
             QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
@@ -140,6 +152,36 @@ ApplicationWindow {
                 QTest.keyClick(root, key)
             QTest.keyClick(root, Qt.Key_Return)
             self.assertEqual(settings.property('switcherDelayMs'), 650)
+
+            preferences = settings.findChild(QObject, 'pickerPreferences')
+            prefs_js = engine.newQObject(preferences)
+            result = prefs_js.property('readRotationValues').callWithInstance(prefs_js, [QJSValue(json.dumps(dict(
+                enabled=True, intervalMinutes=20, avoidRepeat=True, available=True)))])
+            self.assertFalse(result.isError(), result.toString())
+            scroll = settings.findChild(QObject, 'switcherSettingsPage')
+            flick = scroll.property('contentItem')
+            flick.setProperty('contentY', max(0, flick.property('contentHeight') - flick.height()))
+            QTest.qWait(30)
+            repeat = settings.findChild(QObject, 'rotationRepeatSetting')
+            point = repeat.mapToScene(QPointF(repeat.width()/2, repeat.height()/2)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            self.assertFalse(preferences.property('rotationAvoidRepeat'))
+            interval = settings.findChild(QObject, 'rotationIntervalSetting')
+            point = interval.mapToScene(QPointF(interval.width()/2, interval.height()/2)).toPoint()
+            QTest.mouseClick(root, Qt.LeftButton, Qt.NoModifier, point)
+            QTest.keyClick(root, Qt.Key_A, Qt.ControlModifier)
+            QTest.keyClick(root, Qt.Key_4)
+            QTest.keyClick(root, Qt.Key_5)
+            QTest.keyClick(root, Qt.Key_Return)
+            self.assertEqual(preferences.property('rotationMinutes'), 45)
+            self.assertTrue(preferences.property('rotationDirty'))
+            js.property('saveSwitcherSettings').callWithInstance(js)
+            picker_save = next(process for process in preferences.findChildren(Process)
+                               if 'save' in process._cmd and 'switcher-settings.py' in process._cmd[1])
+            picker_save.exited.emit(0)
+            rotation_save = next(command for command in reversed(commands)
+                                 if len(command) > 2 and command[1].endswith('rotation-settings.py') and command[2] == 'save')
+            self.assertEqual(json.loads(rotation_save[-1]), dict(enabled=True, intervalMinutes=45, avoidRepeat=False))
 
             # The styled combo must still open, navigate, and activate normally.
             pages.setProperty('currentIndex', 0)

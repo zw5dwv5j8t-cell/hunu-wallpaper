@@ -11,83 +11,20 @@ Dialog {
     property var dependencyAvailability: ({})
     property string dependencyError: ""
 
-    property bool switcherEnabled: true
-    property string switcherStyle: "carousel"
-    property string switcherPosition: "center"
-    property bool switcherShowButtons: true
-    property bool switcherLivePreview: true
-    property int switcherDelayMs: 400
-    property bool switcherDirty: false
-    property string switcherMessage: ""
-    property string switcherError: ""
-    readonly property bool switcherEditable: !switcherLoad.running && !switcherSave.running && !workspace.busy
-
-    function switcherHelper() {
-        return decodeURIComponent(Qt.resolvedUrl("switcher-settings.py").toString().replace("file://", ""))
-    }
-    function readSwitcherValues(text) {
-        const values = JSON.parse(text)
-        switcherEnabled = values.enabled
-        switcherStyle = values.style || "carousel"
-        switcherPosition = values.position
-        switcherShowButtons = values.showActionButtons
-        switcherLivePreview = values.livePreview
-        switcherDelayMs = values.delayMs
-        switcherDirty = false
-    }
-    function loadSwitcherSettings() {
-        if (switcherLoad.running || switcherSave.running)
-            return
-        switcherError = ""
-        switcherMessage = ""
-        switcherLoad.command = ["python3", switcherHelper(), "get"]
-        switcherLoad.running = true
-    }
-    function saveSwitcherSettings() {
-        if (!switcherEditable)
-            return
-        switcherError = ""
-        switcherMessage = ""
-        switcherSave.command = ["python3", switcherHelper(), "save", JSON.stringify({
-            enabled: switcherEnabled, style: switcherStyle, position: switcherPosition,
-            livePreview: switcherLivePreview, delayMs: switcherDelayMs, showActionButtons: switcherShowButtons
-        })]
-        switcherSave.running = true
-    }
-    Process {
-        id: switcherLoad
-        property string errorOutput: ""
-        onRunningChanged: if (running) errorOutput = ""
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try { dialog.readSwitcherValues(text) }
-                catch (error) { dialog.switcherError = "Could not read switcher settings." }
-            }
-        }
-        stderr: StdioCollector { onStreamFinished: switcherLoad.errorOutput = text.trim() }
-        onExited: function(code) {
-            if (code !== 0)
-                dialog.switcherError = errorOutput || "Could not load switcher settings."
-        }
-    }
-    Process {
-        id: switcherSave
-        property string errorOutput: ""
-        onRunningChanged: if (running) errorOutput = ""
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try { dialog.readSwitcherValues(text) }
-                catch (error) { dialog.switcherError = "Could not read saved switcher settings." }
-            }
-        }
-        stderr: StdioCollector { onStreamFinished: switcherSave.errorOutput = text.trim() }
-        onExited: function(code) {
-            if (code !== 0)
-                dialog.switcherError = errorOutput || "Could not save switcher settings."
-            else if (dialog.switcherError === "")
-                dialog.switcherMessage = "Saved. Changes apply the next time the switcher opens."
-        }
-    }
+    PickerPreferences { id: pickerPreferences; workspace: dialog.workspace }
+    property alias switcherEnabled: pickerPreferences.switcherEnabled
+    property alias switcherStyle: pickerPreferences.switcherStyle
+    property alias switcherPosition: pickerPreferences.switcherPosition
+    property alias switcherShowButtons: pickerPreferences.switcherShowButtons
+    property alias switcherLivePreview: pickerPreferences.switcherLivePreview
+    property alias switcherDelayMs: pickerPreferences.switcherDelayMs
+    property alias switcherDirty: pickerPreferences.switcherDirty
+    property alias switcherMessage: pickerPreferences.switcherMessage
+    property alias switcherError: pickerPreferences.switcherError
+    property alias switcherEditable: pickerPreferences.switcherEditable
+    function readSwitcherValues(text) { pickerPreferences.readSwitcherValues(text) }
+    function loadSwitcherSettings() { pickerPreferences.loadSwitcherSettings() }
+    function saveSwitcherSettings() { pickerPreferences.saveSwitcherSettings() }
 
     property string updateStatus: ""
     property string updateMessage: ""
@@ -330,94 +267,7 @@ Dialog {
                         }
                     }
                 }
-                HunuScrollView {
-                    id: switcherScroll
-                    objectName: "switcherSettingsPage"
-                    clip: true
-                    contentWidth: availableWidth
-                    ColumnLayout {
-                        width: switcherScroll.availableWidth
-                        spacing: 0
-                        HunuSettingsRow {
-                            Layout.fillWidth: true
-                            heading: "Enable switcher"
-                            detail: "Open the picker with your configured hotkey."
-                            HunuToggle {
-                                objectName: "switcherEnabledSetting"
-                                Accessible.name: "Enable wallpaper switcher"
-                                checked: dialog.switcherEnabled
-                                enabled: dialog.switcherEditable
-                                onToggled: { dialog.switcherEnabled = checked; dialog.switcherDirty = true }
-                            }
-                        }
-                        HunuSettingsRow {
-                            Layout.fillWidth: true
-                            heading: "Picker style"
-                            detail: "Carousel or a 3×3 wallpaper grid with pages."
-                            HunuSegmented {
-                                objectName: "switcherStyleSetting"
-                                Accessible.name: "Wallpaper picker style"
-                                options: ["Carousel", "Grid"]
-                                enabled: dialog.switcherEditable && dialog.switcherEnabled
-                                currentIndex: dialog.switcherStyle === "grid" ? 1 : 0
-                                onSelected: function(index) {
-                                    dialog.switcherStyle = index === 1 ? "grid" : "carousel"
-                                    dialog.switcherDirty = true
-                                }
-                            }
-                        }
-                        HunuSettingsRow {
-                            Layout.fillWidth: true
-                            heading: "Screen position"
-                            HunuSegmented {
-                                objectName: "switcherPositionSetting"
-                                property var positions: ["top", "center", "bottom"]
-                                options: ["Top", "Center", "Bottom"]
-                                enabled: dialog.switcherEditable && dialog.switcherEnabled
-                                currentIndex: Math.max(0, positions.indexOf(dialog.switcherPosition))
-                                onSelected: function(index) { dialog.switcherPosition = positions[index]; dialog.switcherDirty = true }
-                            }
-                        }
-                        HunuSettingsRow {
-                            Layout.fillWidth: true
-                            heading: "Show confirmation buttons"
-                            detail: "Enter and Escape always work."
-                            HunuToggle {
-                                objectName: "switcherButtonsSetting"
-                                Accessible.name: "Show apply and cancel buttons"
-                                checked: dialog.switcherShowButtons
-                                enabled: dialog.switcherEditable && dialog.switcherEnabled
-                                onToggled: { dialog.switcherShowButtons = checked; dialog.switcherDirty = true }
-                            }
-                        }
-                        HunuSettingsRow {
-                            Layout.fillWidth: true
-                            heading: "Live desktop preview"
-                            detail: "Preview while browsing. Escape restores your wallpaper."
-                            HunuToggle {
-                                objectName: "switcherLivePreviewSetting"
-                                Accessible.name: "Live desktop preview"
-                                checked: dialog.switcherLivePreview
-                                enabled: dialog.switcherEditable && dialog.switcherEnabled
-                                onToggled: { dialog.switcherLivePreview = checked; dialog.switcherDirty = true }
-                            }
-                        }
-                        HunuSettingsRow {
-                            Layout.fillWidth: true
-                            heading: "Preview delay"
-                            detail: "Wait until you pause cycling."
-                            HunuSpinBox {
-                                objectName: "switcherDelaySetting"
-                                Accessible.name: "Live preview delay in milliseconds"
-                                from: 100; to: 1500; stepSize: 50; editable: true
-                                value: dialog.switcherDelayMs
-                                enabled: dialog.switcherEditable && dialog.switcherEnabled && dialog.switcherLivePreview
-                                onValueModified: { dialog.switcherDelayMs = value; dialog.switcherDirty = true }
-                            }
-                            HunuText { text: "ms"; color: Theme.subtext }
-                        }
-                    }
-                }
+                PickerSettingsPanel { preferences: pickerPreferences }
                 ColumnLayout {
                     spacing: 20
                     HunuSettingsRow {
@@ -491,7 +341,7 @@ Dialog {
                 Item { Layout.fillWidth: true; visible: pages.currentIndex !== 1 }
                 HunuActionButton {
                     objectName: "saveSwitcherSettings"
-                    text: switcherSave.running ? "Saving…" : "Save changes"
+                    text: pickerPreferences.saving ? "Saving…" : "Save changes"
                     primary: true
                     visible: pages.currentIndex === 1
                     enabled: dialog.switcherEditable && dialog.switcherDirty
