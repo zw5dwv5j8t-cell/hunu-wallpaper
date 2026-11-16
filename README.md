@@ -8,6 +8,16 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.19.1
+
+- Update selection borders without repainting cached wallpaper pixels.
+- Ignore redundant Canvas readiness notifications for already displayed images.
+- Keep adjacent Spotlight/Browser previews and neighboring Filmstrip groups
+  cached after initial reveal. Asset counts remain bounded; no resident process
+  or animation is added.
+- Trace selection readiness and backend request duration separately with
+  `HUNU_SWITCHER_TRACE=1`. Grid arrows remain page controls.
+
 ## Changes in v1.19.0
 
 - Add **Spotlight**, **Filmstrip**, and **Browser** alongside Carousel and Grid.

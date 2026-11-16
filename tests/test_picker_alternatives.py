@@ -34,12 +34,62 @@ class AlternativePickerTests(unittest.TestCase):
                 h.wait(lambda: h.root.property('displayedIndex') == 11)
                 tiles = [item for item in h.items() if item.objectName() == 'alternativeTile' and item.parentItem().opacity() > 0]
                 self.assertEqual(len(tiles), 2 if style == 'filmstrip' else 1)
-                self.assertLessEqual(sum(item.objectName() == 'alternativeTile' for item in h.items()), 10 if style == 'filmstrip' else 2)
+                self.assertLessEqual(sum(item.objectName() == 'alternativeTile' for item in h.items()), 20 if style == 'filmstrip' else 4)
                 if os.environ.get('HUNU_ALTERNATIVE_QA_DIR'):
                     path = Path(os.environ['HUNU_ALTERNATIVE_QA_DIR']) / (style + '.png')
                     h.root.grabWindow().save(str(path))
                 self.assertIsNotNone(h.find('pickerSettingsButton'))
                 self.assertFalse(h.warnings, h.warnings)
+
+    def test_selection_does_not_repaint_cached_wallpaper_pixels(self):
+        for style in ('grid', 'filmstrip'):
+            with self.subTest(style=style), grid_picker(count=9, style=style) as h:
+                h.root.setProperty('liveEnabled', False)
+                h.QTest.qWait(250)
+                paints = []
+                canvases = [item for item in h.items() if item.objectName() == 'roundedImageCanvas']
+                self.assertTrue(canvases)
+                for canvas in canvases:
+                    canvas.painted.connect(lambda: paints.append(True))
+                for index in (1, 2, 3, 2, 1, 0):
+                    h.call('choose', index)
+                    h.wait(lambda: h.root.property('displayedIndex') == index)
+                    h.QTest.qWait(20)
+                self.assertEqual(paints, [], 'Selection borders must not rasterize photos again')
+
+    def test_repeated_ready_notifications_do_not_redraw_loaded_images(self):
+        for style in ('carousel', 'grid', 'spotlight', 'filmstrip', 'browser'):
+            with self.subTest(style=style), grid_picker(count=9, style=style) as h:
+                h.QTest.qWait(300)
+                paints = []
+                canvases = [item for item in h.items() if item.objectName() == 'roundedImageCanvas']
+                for canvas in canvases:
+                    canvas.painted.connect(lambda: paints.append(True))
+                    js = h.engine.newQObject(canvas)
+                    for _ in range(5):
+                        result = js.property('imageReady').callWithInstance(js, [])
+                        self.assertFalse(result.isError(), result.toString())
+                h.QTest.qWait(50)
+                self.assertEqual(paints, [], 'Already loaded images must not be rasterized again')
+
+    def test_adjacent_single_previews_remain_cached(self):
+        for style in ('spotlight', 'browser'):
+            with self.subTest(style=style), grid_picker(count=12, style=style) as h:
+                h.root.setProperty('liveEnabled', False)
+                h.QTest.qWait(250)
+                def tile(index):
+                    return next((item for item in h.items() if item.objectName() == 'alternativeTile'
+                                 and item.property('wallpaperIndex') == index), None)
+                original = tile(0)
+                neighbor = tile(1)
+                self.assertIsNotNone(neighbor)
+                h.call('choose', 1)
+                h.wait(lambda: h.root.property('displayedIndex') == 1)
+                h.call('choose', 0)
+                h.wait(lambda: h.root.property('displayedIndex') == 0)
+                self.assertEqual(tile(0), original)
+                self.assertEqual(tile(1), neighbor)
+                self.assertLessEqual(sum(item.objectName() == 'alternativeTile' for item in h.items()), 4)
 
     def test_empty_and_single_wallpaper_libraries(self):
         from PySide6.QtCore import Qt

@@ -25,6 +25,12 @@ Item {
             result.push(i)
         return result
     }
+    function nearby(index) {
+        const distance = Math.abs(index - view.picker.selectedIndex)
+        // Keep adjacent single previews, or adjacent filmstrip groups, warm.
+        // Outgoing assets stay alive separately until the replacement is ready.
+        return strip ? Math.abs(Math.floor(index / 5) - Math.floor(view.picker.selectedIndex / 5)) <= 1 : distance <= 1
+    }
     function showRequested() {
         if (!picker.sets.length)
             return
@@ -43,7 +49,8 @@ Item {
         delegate: Loader {
             id: slot
             required property int index
-            active: view.picker.decodingStarted && (view.requested.indexOf(index) >= 0 || view.displayed.indexOf(index) >= 0)
+            active: view.picker.decodingStarted && (view.requested.indexOf(index) >= 0 || view.displayed.indexOf(index) >= 0
+                || (view.picker.prefetchEnabled && view.nearby(index)))
             width: view.strip ? Math.max(1, (view.width - view.gap * 4) / 5) : view.previewWidth
             height: view.height
             x: view.strip ? Math.max(0, (view.width - (view.displayed.length * (width + view.gap) - view.gap)) / 2) + (index % 5) * (width + view.gap) : 0

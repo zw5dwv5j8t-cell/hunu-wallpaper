@@ -65,6 +65,7 @@ PanelWindow {
     property string liveReason: ""
     property string intent: ""
     property string inFlight: ""
+    property double backendStarted: 0
     property string queuedName: ""
     property string previewedName: ""
     property bool settingsOpen: false
@@ -82,7 +83,10 @@ PanelWindow {
         else if (alternatives.item)
             alternatives.item.showRequested()
     }
+    property double selectionStarted: 0
     function showSelection() {
+        if (displayedIndex !== selectedIndex && selectionStarted)
+            trace("selection-ready", {index: selectedIndex, selectionMs: Date.now() - selectionStarted})
         displayedIndex = selectedIndex
         if (!firstFrameReady) {
             firstFrameReady = true
@@ -126,6 +130,8 @@ PanelWindow {
         }
     }
     onSelectedSetChanged: {
+        selectionStarted = Date.now()
+        trace("selection-requested", {index: selectedIndex})
         schedulePreview()
         Qt.callLater(picker.showRequested)
     }
@@ -150,6 +156,8 @@ PanelWindow {
             queuedName = ""
         }
         inFlight = action
+        backendStarted = Date.now()
+        trace("backend-requested", {action: action})
         sessionProcess.write(JSON.stringify({action: action, name: name}) + "\n")
     }
     function confirm() {
@@ -232,6 +240,8 @@ PanelWindow {
                 initialSelectionTimer.start()
             return
         }
+        if (inFlight !== "" && backendStarted)
+            trace("backend-completed", {action: inFlight, backendMs: Date.now() - backendStarted})
         inFlight = ""
         if (result.event === "committed" || result.event === "cancelled") {
             normalExit = true
@@ -728,7 +738,6 @@ PanelWindow {
             : paintedImage.status === Image.Error
                 || (prepared && paintedImage.renderedUrl.toString() === paintedImage.imageUrl.toString())
         onFrameReadyChanged: if (frameReady) Qt.callLater(picker.showRequested)
-        onHighlightedChanged: paintedImage.requestPaint()
 
         // The controller supplies header geometry. Canvas is the only pixel
         // loader; avoid a second hidden Image and its serial decode/cache path.
@@ -780,6 +789,18 @@ PanelWindow {
                 target: nativeImageLoader.item
                 function onTraceEvent(stage) { picker.trace("native-" + stage, {index: preview.traceIndex}) }
             }
+            // Selection changes update a cheap scene-graph border, without
+            // re-rasterizing and uploading the wallpaper bitmap.
+            Rectangle {
+                anchors.fill: parent
+                z: 1
+                visible: !preview.nativeRenderer
+                color: "transparent"
+                antialiasing: true
+                radius: imageFrame.cornerRadius
+                border.width: preview.highlighted ? 2 : 1
+                border.color: preview.highlighted ? "#b3ffffff" : "#54ffffff"
+            }
             Canvas {
                 id: paintedImage
                 visible: !preview.nativeRenderer
@@ -823,8 +844,10 @@ PanelWindow {
                         picker.trace("canvas-image-load-completed", {index: preview.traceIndex})
                     status = Image.Ready
                     if (displayedUrl.toString() === imageUrl.toString()) {
+                        // Repeated load notifications/polls must not redraw an
+                        // unchanged bitmap. A changed ratio resizes the Canvas
+                        // and already requests a paint through its geometry.
                         displayedRatio = pendingRatio
-                        requestPaint()
                         return
                     }
                     const oldUrl = displayedUrl
@@ -903,12 +926,6 @@ PanelWindow {
                     ctx.clip()
                     ctx.drawImage(displayedUrl, padding, padding, w, h)
                     ctx.restore()
-                    const line = preview.highlighted ? 2 : 1
-                    roundedPath(padding + line / 2, padding + line / 2,
-                        w - line, h - line, Math.max(0, r - line / 2))
-                    ctx.lineWidth = line
-                    ctx.strokeStyle = preview.highlighted ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.33)"
-                    ctx.stroke()
                 }
             }
         }
