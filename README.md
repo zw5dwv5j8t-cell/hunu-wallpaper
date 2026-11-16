@@ -8,6 +8,15 @@ density, Hunu Wallpaper Splitter can use each monitor's **real physical
 dimensions and placement** to build a composition that visually continues
 across the displays.
 
+## Changes in v1.19.2
+
+- Add an optional Noctalia SDDM sync guard. It merges wallpaper hooks, waits
+  until picker browsing/rollback ends, and then invokes your existing sync
+  script once for all monitors. New requests cancel obsolete work; ImageMagick
+  thread use is limited. The worker exits after completion.
+- Installation supplies the helper but does not change Noctalia hooks or your
+  existing sync script. See [SDDM hook setup](docs/sddm-sync.md).
+
 ## Changes in v1.19.1
 
 - Update selection borders without repainting cached wallpaper pixels.

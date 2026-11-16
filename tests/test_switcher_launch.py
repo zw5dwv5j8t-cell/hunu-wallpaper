@@ -81,9 +81,10 @@ else:
                                         capture_output=True, text=True, check=True)
                 self.assertEqual(native.stdout.strip(), 'false')
             from qt_fixtures import CONTROLS
-            for name in ['Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'switcher-settings.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml'] + [name + '.qml' for name in CONTROLS]:
+            for name in ['sddm-sync-guard.py', 'Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'switcher-settings.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml'] + [name + '.qml' for name in CONTROLS]:
                 self.assertEqual((install / name).read_bytes(), (ROOT / 'src' / name).read_bytes())
             self.assertTrue(os.access(install / 'switcher.sh', os.X_OK))
+            self.assertTrue(os.access(install / 'sddm-sync-guard.py', os.X_OK))
 
 
 if __name__ == '__main__':
