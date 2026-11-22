@@ -70,10 +70,13 @@ else:
             (install / 'config.conf').write_text('APPLY_BACKEND=noctalia\n# Keep my setup\n')
             preferences = '{"enabled":false,"position":"bottom","livePreview":false,"delayMs":750}'
             (install / 'switcher-settings.json').write_text(preferences)
+            legacy_guard = install / 'sddm-sync-guard.py'
+            legacy_guard.write_text('# Old installed guard\n')
             for _ in range(2):
                 result = subprocess.run(['bash', str(ROOT / 'install.sh')], cwd=ROOT, env=env,
                                         capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(legacy_guard.exists())
                 self.assertEqual((install / 'config.conf').read_text(), 'APPLY_BACKEND=noctalia\n# Keep my setup\n')
                 self.assertEqual((install / 'switcher-settings.json').read_text(), preferences)
                 self.assertTrue(os.access(install / 'hunu-switcher-native', os.X_OK))
@@ -81,10 +84,9 @@ else:
                                         capture_output=True, text=True, check=True)
                 self.assertEqual(native.stdout.strip(), 'false')
             from qt_fixtures import CONTROLS
-            for name in ['sddm-sync-guard.py', 'Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'switcher-settings.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml'] + [name + '.qml' for name in CONTROLS]:
+            for name in ['Switcher.qml', 'switcher.sh', 'switcher-controller.py', 'switcher-settings.py', 'list-wallpaper-sets.py', 'SavedSetPreview.qml'] + [name + '.qml' for name in CONTROLS]:
                 self.assertEqual((install / name).read_bytes(), (ROOT / 'src' / name).read_bytes())
             self.assertTrue(os.access(install / 'switcher.sh', os.X_OK))
-            self.assertTrue(os.access(install / 'sddm-sync-guard.py', os.X_OK))
 
 
 if __name__ == '__main__':

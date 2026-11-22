@@ -101,7 +101,6 @@ required_files=(
     "src/switcher-transport.py"
     "src/switcher-settings.py"
     "src/rotation-settings.py"
-    "src/sddm-sync-guard.py"
     "src/launch.sh"
     "src/shell.qml"
     "src/SetupView.qml"
@@ -224,7 +223,6 @@ app_files=(
     "switcher-transport.py"
     "switcher-settings.py"
     "rotation-settings.py"
-    "sddm-sync-guard.py"
     "launch.sh"
     "shell.qml"
     "SetupView.qml"
@@ -286,7 +284,6 @@ done
 install -m 755 "$REPO_DIR/native/target/release/hunu-switcher-native" "$CONFIG_DIR/hunu-switcher-native"
 
 chmod +x \
-    "$CONFIG_DIR/sddm-sync-guard.py" \
     "$CONFIG_DIR/launch.sh" \
     "$CONFIG_DIR/switcher.sh" \
     "$CONFIG_DIR/split-wallpaper.sh" \
@@ -368,6 +365,9 @@ fi
 # ---------------------------------------------------------------------------
 # Installation summary
 # ---------------------------------------------------------------------------
+
+# The installation backup above preserves the obsolete helper for recovery.
+rm -f -- "$CONFIG_DIR/sddm-sync-guard.py"
 
 printf 'Installed successfully.\n\n'
 
