@@ -1,0 +1,47 @@
+name: Validate Hunu Wallpaper
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Build and test (Arch Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: archlinux:latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_QUICK_BACKEND: software
+
+    steps:
+      - name: Install test dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            bash coreutils findutils grep sed gawk git \
+            python pyside6 imagemagick jq \
+            rust cargo gcc make
+
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Assert mandatory test dependencies are available
+        run: |
+          command -v magick
+          command -v cargo
+          python -c 'from PySide6 import QtCore, QtQuick, QtQml, QtTest'
+
+      - name: Check installer and shell syntax
+        run: bash -n install.sh uninstall.sh src/*.sh
+
+      - name: Build locked native startup helper
+        run: cargo build --locked --release --manifest-path native/Cargo.toml
+
+      - name: Run Python and Qt regression suite
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
