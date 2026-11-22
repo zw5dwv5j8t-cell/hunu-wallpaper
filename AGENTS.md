@@ -29,3 +29,23 @@ its refs and working tree. Otherwise, proceed with the available project evidenc
 Follow the shared skill to evaluate durable discoveries and submit any eligible
 handoff through the authorized intake route. If submission is blocked, report
 the blocker and retain the private draft as directed by the skill.
+
+### Pull requests and automatic merging
+
+For routine changes, create a feature branch and pull request to `main`, run the
+repository's test suite, and rely on GitHub Actions required checks. When the
+repository has GitHub auto-merge enabled **and** the `Build and test (Arch Linux)`
+check is required on `main`, enable GitHub auto-merge for the pull request.
+Do not infer that local tests alone satisfy this gate, and never bypass branch
+protections or push directly to `main`.
+
+Do **not** enable auto-merge for changes involving authentication, secrets,
+permissions, GitHub Actions/workflows, CI policies, install/uninstall or
+destructive file operations, boot/display/session configuration, or other
+changes that could disrupt an active desktop. Leave those PRs open for human
+review. This file and the CI workflow itself are high-risk by this policy.
+
+If branch protections or CI are missing, unknown, or failing, open the PR but
+leave auto-merge off and report the specific blocker. Do not automatically
+merge on a skipped or absent check. Keep the user's live machine unchanged
+unless explicitly instructed and tested.
